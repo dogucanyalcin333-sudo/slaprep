@@ -50,6 +50,15 @@ upper left
 # --- sözlük anahtarı (prep.json: parça başına plate etiketi) ---
 plate
 
+# --- geçmiş dosyası (~/.slaprep_history.json) ve run.timings anahtarları + argparse dest adları ---
+kit
+komut
+parça
+montaj
+yükseklik_mm
+ölçek
+yükleme
+
 # --- SurfaceMap.method değerleri: pipeline.py bunlara bakar (== "düzlemsel", startswith("temas")) ---
 temas+duvar
 temas
