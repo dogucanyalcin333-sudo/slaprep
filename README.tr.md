@@ -20,7 +20,7 @@ Depoyu indirin (GitHub'da **Code → Download ZIP**, ya da `git clone`), sonra `
 Klasörü taşırsanız `install.bat`'ı tekrar çalıştırın.
 
 ```
-git clone https://github.com/<kullanıcı>/slaprep.git
+git clone https://github.com/dogucanyalcin333-sudo/slaprep.git
 cd slaprep
 install.bat
 ```

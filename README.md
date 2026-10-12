@@ -27,7 +27,7 @@ It creates a virtual environment, installs the package and puts an **SLAPrep** s
 Run `install.bat` again if you move the folder.
 
 ```
-git clone https://github.com/<user>/slaprep.git
+git clone https://github.com/dogucanyalcin333-sudo/slaprep.git
 cd slaprep
 install.bat
 ```
