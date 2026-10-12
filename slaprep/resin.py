@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, fields
 
 from . import prefs
 from .config import SEPARATE_GROUP
+from .i18n import t
 
 SEPARATE_PREFIX = SEPARATE_GROUP + "/"     # plate etiketi: "ayrı/plate_01"
 
@@ -95,24 +96,27 @@ def resin_cell(e: dict | None, currency: str) -> str:
     """Tablo hücresi: "≈ 85 ml · 102.00 TL"."""
     if not e:
         return "–"
-    return f"≈ {e['ml']:.0f} ml" + (f" · {e['cost']:.2f} {currency}" if e.get("cost") is not None else "")
+    return t("≈ {ml} ml").format(ml=f"{e['ml']:.0f}") \
+        + (f" · {e['cost']:.2f} {currency}" if e.get("cost") is not None else "")
 
 
 def summary_lines(rs: dict) -> list[str]:
     """Özet / konsol için kısa satırlar."""
     cur = rs["currency"]
-    t = rs["total"]
-    if not t["net_ml"]:
+    tot = rs["total"]
+    if not tot["net_ml"]:
         return []
-    out = [f"Reçine: {t['net_ml']:.0f} ml parça + %{rs['extra_pct']:g} destek/kayıp ≈ {t['ml']:.0f} ml"
-           + (f" ≈ {t['cost']:.2f} {cur}" if t["cost"] is not None else "")]
+    out = [t("Reçine: {net} ml parça + %{pct} destek/kayıp ≈ {ml} ml").format(
+        net=f"{tot['net_ml']:.0f}", pct=f"{rs['extra_pct']:g}", ml=f"{tot['ml']:.0f}")
+        + (f" ≈ {tot['cost']:.2f} {cur}" if tot["cost"] is not None else "")]
     for name, g in rs["groups"].items():
         if len(rs["groups"]) > 1 or name == SEPARATE_GROUP:
-            out.append(f"  {'ayrı plate reçinesi' if name == SEPARATE_GROUP else 'ana reçine'}: ≈ {g['ml']:.0f} ml, "
-                       f"{g['bottles']} şişe ({rs['bottle_ml']:g} ml)"
-                       + (f", ≈ {g['cost']:.2f} {cur}" if g["cost"] is not None else ""))
+            label = t("ayrı plate reçinesi") if name == SEPARATE_GROUP else t("ana reçine")
+            out.append("  " + label + t(": ≈ {ml} ml, {n} şişe ({bottle} ml)").format(
+                ml=f"{g['ml']:.0f}", n=g["bottles"], bottle=f"{rs['bottle_ml']:g}")
+                + (f", ≈ {g['cost']:.2f} {cur}" if g["cost"] is not None else ""))
         else:
-            out[0] += f" — {g['bottles']} şişe ({rs['bottle_ml']:g} ml)"
-    if t["cost"] is None:
-        out.append("  (maliyet için uygulamada Reçine kartına litre fiyatını girin)")
+            out[0] += t(" — {n} şişe ({bottle} ml)").format(n=g["bottles"], bottle=f"{rs['bottle_ml']:g}")
+    if tot["cost"] is None:
+        out.append(t("  (maliyet için uygulamada Reçine kartına litre fiyatını girin)"))
     return out

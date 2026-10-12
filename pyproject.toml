@@ -37,7 +37,7 @@ slaprep-gui = "slaprep.gui:main"
 packages = ["slaprep"]
 
 [tool.setuptools.package-data]
-slaprep = ["assets/*"]
+slaprep = ["assets/*", "locale/*.json"]
 
 [tool.pytest.ini_options]
 markers = ["rango: Rango test kiti gerektirir (yavaş)"]

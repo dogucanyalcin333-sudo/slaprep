@@ -1,0 +1,67 @@
+# ÇEVRİLMEYECEK metinler: veri anahtarları, dosya/klasör adları, biçim kodları.
+# Bunlar JSON/YAML dosyalarına yazılır ya da kodda karşılaştırılır; çevrilirse mantık bozulur.
+# tools/i18n_extract.py bu listedeki metinleri "çevrilecek" saymaz.
+
+# --- assembly["mode"] değerleri (analysis.json / prep.json) ---
+tam
+kısmi
+otomatik
+bilinmiyor
+
+# --- link["kind"] değerleri (asmcheck.part_status bunlara bakar) ---
+kök
+kullanıcı
+kullanıcı ayırdı
+ayrıldı
+ek yüzeyi
+kenetlenme
+dosyadan
+orijinden
+kayma taraması
+referans
+reklam
+düzlemsel
+
+# --- kit tarama durumları (scan.py; cli sıralaması ve scan JSON çıktısı) ---
+okunamadı
+tek parça
+dağınık
+kısmen kaymış
+tam montajlı
+
+# --- kuyruk durumları (batch.py; prefs.json'da saklanır) ---
+bekliyor
+çalışıyor
+bitti
+hata
+yarım kaldı
+
+# --- plate grubu = disk üstünde klasör adı (plates\ayrı\plate_01.stl) ---
+ayrı
+
+# --- Tk / matplotlib seçenek değerleri ve yazı tipi adları ---
+Segoe UI
+Segoe UI Semibold
+Segoe MDL2 Assets
+disabled selected
+selected active
+upper left
+
+# --- sözlük anahtarı (prep.json: parça başına plate etiketi) ---
+plate
+
+# --- SurfaceMap.method değerleri: pipeline.py bunlara bakar (== "düzlemsel", startswith("temas")) ---
+temas+duvar
+temas
+
+# --- io.py sadeleştirme yöntemi parametresi ---
+küme
+
+# --- layout.py içindeki sıralama adları (bench çıktısı, kullanıcıya görünmez) ---
+karışık
+
+# --- regex desenleri (variants.py: sol/sağ eşleştirme, scan.py: destekli dosya adı) ---
+(?<![a-z])(?<!no[ _\-])(?<!no)(?<!un)(pre[ _\-]?sup\w*|supported|supports?|sup)(?![a-z])
+(?:[ _\-.]+(?:v\d+|ver\d+|version[ _]?\d*|alt\d*|alternat\w*|option[ _]?\d*|opt\d+|var\d+|variant[ _]?\d*|(?:no|with)[ _\-]?
+(?:^|[ _\-])(?:nohat|no_hat|withhat|with_hat|alt|option|version)(?=$|[ _\-])
+(?:^|(?<=[ _\-.]))(left|right|sol|sag|sağ|l|r|lft|rgt|izq|der)(?=$|[ _\-.\d])

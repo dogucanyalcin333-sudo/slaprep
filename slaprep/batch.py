@@ -12,9 +12,16 @@ from pathlib import Path
 
 from . import prefs
 from .config import out_dir
+from .i18n import t
 from .resin import ResinPrefs, resin_summary
 
 WAITING, RUNNING, DONE, FAILED, STOPPED = "bekliyor", "çalışıyor", "bitti", "hata", "yarım kaldı"
+
+
+def status_text(status: str) -> str:
+    """Durum anahtarının ekranda görünen karşılığı (anahtarın kendisi prefs.json'da saklanır, çevrilmez)."""
+    return {WAITING: t("bekliyor"), RUNNING: t("çalışıyor"), DONE: t("bitti"),
+            FAILED: t("hata"), STOPPED: t("yarım kaldı")}.get(status, status)
 
 
 @dataclass
@@ -65,32 +72,32 @@ def result_text(kit: Path, prefs: ResinPrefs | None = None) -> str:
     try:
         d = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
-        return "prep.json okunamadı"
+        return t("prep.json okunamadı")
     parts = d.get("parts", {})
     printed = {n: x for n, x in parts.items() if x.get("printed")}
-    bits = [f"{len(printed)} parça"]
+    bits = [t("{n} parça").format(n=len(printed))]
     plates = d.get("plates") or {}
     if plates:
-        bits.append(f"{len(plates)} plate")
+        bits.append(t("{n} plate").format(n=len(plates)))
     if d.get("print_time_min"):
         bits.append(f"~{fmt_duration(d['print_time_min'] * 60)}")
     from .resin import load_prefs, resin_cell
 
     rs = resin_summary(d, prefs or load_prefs())
     if rs["total"]["net_ml"]:
-        bits.append("reçine " + resin_cell(rs["total"], rs["currency"]))
+        bits.append(t("reçine") + " " + resin_cell(rs["total"], rs["currency"]))
     n_warn = len(d.get("warnings", [])) + sum(len(x.get("warnings", [])) for x in printed.values())
     failed = [n for n, x in parts.items() if x.get("repair_failed") and x.get("printed")]
     unplaced = [n for n, x in printed.items() if not x.get("plate")] if plates else []
     if failed:
-        bits.append(f"onarılamayan: {', '.join(failed)}")
+        bits.append(t("onarılamayan: {parts}").format(parts=", ".join(failed)))
     if unplaced:
-        bits.append(f"plate'e sığmayan: {', '.join(unplaced)}")
+        bits.append(t("plate'e sığmayan: {parts}").format(parts=", ".join(unplaced)))
     mode = (d.get("assembly") or {}).get("mode")
     if mode == "bilinmiyor":
-        bits.append("montaj bulunamadı")
+        bits.append(t("montaj bulunamadı"))
     if n_warn:
-        bits.append(f"{n_warn} uyarı")
+        bits.append(t("{n} uyarı").format(n=n_warn))
     return ", ".join(bits)
 
 
@@ -100,9 +107,10 @@ def morning_summary(items: list[QueueItem]) -> str:
 
     done = [i for i in items if i.status == DONE]
     bad = [i for i in items if i.status in (FAILED, STOPPED)]
-    lines = [f"Kuyruk: {len(done)} kit hazır" + (f", {len(bad)} kit sorunlu" if bad else "")
-             + f" (toplam {fmt_duration(sum(i.seconds for i in items))})"]
+    lines = [t("Kuyruk: {n} kit hazır").format(n=len(done))
+             + (t(", {n} kit sorunlu").format(n=len(bad)) if bad else "")
+             + " " + t("(toplam {dur})").format(dur=fmt_duration(sum(i.seconds for i in items)))]
     for i in items:
         if i.status in (DONE, FAILED, STOPPED):
-            lines.append(f"  • {i.name}: {i.status}" + (f" — {i.result}" if i.result else ""))
+            lines.append(f"  • {i.name}: {status_text(i.status)}" + (f" — {i.result}" if i.result else ""))
     return "\n".join(lines)

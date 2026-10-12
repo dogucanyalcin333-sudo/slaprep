@@ -12,6 +12,7 @@ import trimesh  # noqa: E402
 from matplotlib.collections import PolyCollection  # noqa: E402
 
 from .fmt import nice_step  # noqa: E402
+from .i18n import t  # noqa: E402
 from .io import simplify  # noqa: E402
 
 PALETTE = [
@@ -157,7 +158,7 @@ def render_part(mesh: trimesh.Trimesh, colors: np.ndarray, out: Path, title: str
     if abs(cam @ upv) > 0.95:
         upv = np.array([0.0, 0.0, 1.0]) if abs(cam[2]) < 0.9 else np.array([0.0, 1.0, 0.0])
     fig, axes = plt.subplots(1, 2, figsize=(8, 4.2), dpi=100)
-    for ax, c, lbl in ((axes[0], cam, "gizli taraf"), (axes[1], -cam, "karşı taraf")):
+    for ax, c, lbl in ((axes[0], cam, t("gizli taraf")), (axes[1], -cam, t("karşı taraf"))):
         draw(ax, [(pv, col)], upv, c)
         if holes:
             right, u2, c2 = view_basis(upv, c)
@@ -241,9 +242,9 @@ def render_height_view(items: list[tuple[str, trimesh.Trimesh]], base_names: lis
     if base and figs and fig_lo - lo > 0.5:
         # özetteki "figür yüksekliği (kaide hariç)" ile aynı tanım: figür parçalarının en alt noktasından tepeye
         ax.axhline(fig_lo - lo, color="#c0392b", ls="--", lw=1)
-        ax.text(0, fig_lo - lo, f" kaide hariç figür: {hi - fig_lo:.0f} mm", va="bottom", ha="left",
-                fontsize=8, color="#c0392b", backgroundcolor="white")
-    ax.set_title(f"Boy: {H:.1f} mm ({H / 10:.1f} cm)", fontsize=11)
+        ax.text(0, fig_lo - lo, " " + t("kaide hariç figür: {mm} mm").format(mm=f"{hi - fig_lo:.0f}"),
+                va="bottom", ha="left", fontsize=8, color="#c0392b", backgroundcolor="white")
+    ax.set_title(t("Boy: {mm} mm ({cm} cm)").format(mm=f"{H:.1f}", cm=f"{H / 10:.1f}"), fontsize=11)
     for s in ("top", "right", "bottom"):
         ax.spines[s].set_visible(False)
     fig.tight_layout()
@@ -285,7 +286,7 @@ def render_assembly(items: list[tuple[str, trimesh.Trimesh]], up_axis: int, up_s
     for vname, (up, cam) in views.items():
         fig, ax = plt.subplots(figsize=(7, 9), dpi=110)
         draw(ax, colored, up, cam)
-        ax.set_title(f"{title} — {'önden' if vname == 'front' else 'yandan'}", fontsize=10)
+        ax.set_title(f"{title} — {t('önden') if vname == 'front' else t('yandan')}", fontsize=10)
         handles = [plt.Line2D([], [], marker="s", ls="", color=PALETTE[i % len(PALETTE)], label=n)
                    for i, (n, _) in enumerate(items)]
         ax.legend(handles=handles, loc="upper left", bbox_to_anchor=(1.0, 1.0), fontsize=7, frameon=False)

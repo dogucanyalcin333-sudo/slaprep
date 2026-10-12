@@ -5,7 +5,11 @@ Girdi analysis.json / prep.json'daki biçimdir: parça sözlüğü ({"placed": .
 """
 from __future__ import annotations
 
+from .i18n import t
+
 # Bu modül hafif kalmalı (uygulama açılırken yüklenir): autoassemble'ı içe aktarmaz.
+# DİKKAT: link["kind"] / assembly["mode"] değerleri (ör. "referans", "bilinmiyor") veri anahtarıdır,
+# analysis.json'a yazılır: çevrilmez. Sadece döndürülen durum metni t() ile çevrilir.
 STRONG_CONTACT = 300.0     # mm²: otomatik montajın 1. aşama ("güçlü ek") eşiği = min_contact 60 × STRICT_FACTOR 5
 STRONG_DOCK = 1000.0                       # mm²: organik temas (kenetlenme) bunun üstünde güvenilir sayılır
 
@@ -19,37 +23,40 @@ def part_status(name: str, part: dict, a: dict) -> tuple[str, str, int]:
     link = (a.get("links") or {}).get(name, {})
     kind, c = link.get("kind"), link.get("contact", 0) or 0
     if kind == "referans":
-        return "ölçek referansı (basılmaz)", "off", 6
+        return t("ölçek referansı (basılmaz)"), "off", 6
     if kind == "reklam":
-        return "reklam/filigran dosyası (basılmaz)", "off", 6
+        return t("reklam/filigran dosyası (basılmaz)"), "off", 6
     if name not in (a.get("selected") or [name]):
-        return "alternatif (seçilmedi)", "off", 6
+        return t("alternatif (seçilmedi)"), "off", 6
     if mode == "bilinmiyor":
-        return "montaj yok", "off", 5
+        return t("montaj yok"), "off", 5
     if kind == "kullanıcı ayırdı":
-        return "ayrıldı (sizin düzeltmeniz)", "user", 3
+        return t("ayrıldı (sizin düzeltmeniz)"), "user", 3
     if kind == "ayrıldı":
-        return "ayrıldı: zayıf temas + gömülüyordu", "check", 1
+        return t("ayrıldı: zayıf temas + gömülüyordu"), "check", 1
     if not part.get("placed"):
         if any(name in g for g in a.get("unattached_groups") or []):
-            return "ayrı grup: montaja eklenemedi", "check", 1
-        return "yerleşmedi (ayrı basılacak)", "bad", 0
+            return t("ayrı grup: montaja eklenemedi"), "check", 1
+        return t("yerleşmedi (ayrı basılacak)"), "bad", 0
     if kind == "kök":
-        return "referans parça", "ok", 4
+        return t("referans parça"), "ok", 4
     if kind == "kullanıcı":
         cand = link.get("cand")
-        return "bağlandı (sizin düzeltmeniz" + (f", konum {cand}" if cand else "") + ")", "user", 3
+        text = t("bağlandı (sizin düzeltmeniz, konum {n})").format(n=cand) if cand \
+            else t("bağlandı (sizin düzeltmeniz)")
+        return text, "user", 3
     if kind == "kenetlenme":
-        return ("organik temas, güçlü", "ok", 4) if c >= STRONG_DOCK else ("organik temas — kontrol edin", "check", 2)
+        return (t("organik temas, güçlü"), "ok", 4) if c >= STRONG_DOCK \
+            else (t("organik temas — kontrol edin"), "check", 2)
     if kind == "ek yüzeyi":
-        return ("güçlü ek", "ok", 4) if c >= STRONG_CONTACT else ("zayıf ek — kontrol edin", "check", 2)
+        return (t("güçlü ek"), "ok", 4) if c >= STRONG_CONTACT else (t("zayıf ek — kontrol edin"), "check", 2)
     if kind == "dosyadan":
-        return "dosyadan (montajlı kit)", "ok", 4
+        return t("dosyadan (montajlı kit)"), "ok", 4
     if kind == "orijinden":
-        return "dosyada orijindeydi, yerine oturtuldu — kontrol edin", "check", 2
+        return t("dosyada orijindeydi, yerine oturtuldu — kontrol edin"), "check", 2
     if kind == "kayma taraması":
-        return "kayma çözüldü", "ok", 4
-    return "yerleşti", "ok", 4
+        return t("kayma çözüldü"), "ok", 4
+    return t("yerleşti"), "ok", 4
 
 
 def assembly_dict(asm) -> dict:

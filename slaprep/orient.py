@@ -11,6 +11,7 @@ import numpy as np
 import trimesh
 
 from .geom import DistanceField
+from .i18n import t
 
 ALT_DELTA = 0.6     # alternatif yönler için en iyi puandan izin verilen kayıp (gizli-yüz-aşağı oranında ~%20)
 UNVENTED_PENALTY = 2.0   # deliklenemeyen vantuz çanağı başına puan cezası (baskı hatası: görünür destekten ağır basar)
@@ -42,14 +43,15 @@ class Orientation:
     alternatives: list = None      # [best, alt1, ...] plate verimi için (sadece en iyide dolu)
 
     def describe(self) -> str:
-        t = self.terms
-        yon = f"eğim {self.tilt:.0f}°" if self.tilt <= 60 else "serbest yön"
-        s = f"{yon}, gizli yüz aşağı %{t.get('hidden_down', 0) * 100:.0f}"
-        if "sup_vis" in t:
-            s += (f"; destek: gizli %{t['sup_hidden'] * 100:.0f} · arka/alt %{t['sup_low'] * 100:.0f} · "
-                  f"ön/yan %{t['sup_vis'] * 100:.0f}")
+        tm = self.terms
+        yon = t("eğim {deg}°").format(deg=f"{self.tilt:.0f}") if self.tilt <= 60 else t("serbest yön")
+        s = yon + t(", gizli yüz aşağı %{pct}").format(pct=f"{tm.get('hidden_down', 0) * 100:.0f}")
+        if "sup_vis" in tm:
+            s += t("; destek: gizli %{hidden} · arka/alt %{low} · ön/yan %{vis}").format(
+                hidden=f"{tm['sup_hidden'] * 100:.0f}", low=f"{tm['sup_low'] * 100:.0f}",
+                vis=f"{tm['sup_vis'] * 100:.0f}")
         if not self.fits:
-            s += " (SIĞMIYOR)"
+            s += t(" (SIĞMIYOR)")
         return s
 
 

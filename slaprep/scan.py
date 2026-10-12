@@ -13,6 +13,18 @@ from pathlib import Path
 import numpy as np
 
 from .config import OUT_DIR
+from .i18n import t
+
+# kit.status değerleri: veri anahtarıdır (cli sıralaması, scan JSON çıktısı) — çevrilmez, ekranda
+# status_text() ile gösterilir.
+READ_FAIL, SINGLE, SCATTERED, SHIFTED, ASSEMBLED = \
+    "okunamadı", "tek parça", "dağınık", "kısmen kaymış", "tam montajlı"
+
+
+def status_text(status: str) -> str:
+    """Durum anahtarının ekranda görünen karşılığı."""
+    return {READ_FAIL: t("okunamadı"), SINGLE: t("tek parça"), SCATTERED: t("dağınık"),
+            SHIFTED: t("kısmen kaymış"), ASSEMBLED: t("tam montajlı")}.get(status, status)
 
 _REC = np.dtype([("n", "<f4", (3,)), ("v", "<f4", (3, 3)), ("a", "<u2")])
 _SUPPORT_HINT = re.compile(r"(?<![a-z])(?<!no[ _\-])(?<!no)(?<!un)(pre[ _\-]?sup\w*|supported|supports?|sup)(?![a-z])",
@@ -52,7 +64,7 @@ def stl_bounds(path: Path, chunk: int = 2_000_000) -> StlInfo:
         with open(path, "rb") as fh:
             head = fh.read(84)
         if len(head) < 84:
-            return StlInfo(path, 0, None, error="dosya çok kısa")
+            return StlInfo(path, 0, None, error=t("dosya çok kısa"))
         n = int(np.frombuffer(head[80:84], "<u4")[0])
         if (84 + 50 * n != size and (size - 84) % 50 == 0 and size > 84
                 and not head.lstrip().lower().startswith(b"solid")):
@@ -72,15 +84,15 @@ def stl_bounds(path: Path, chunk: int = 2_000_000) -> StlInfo:
                     lo = np.minimum(lo, v.min(0))
                     hi = np.maximum(hi, v.max(0))
             del mm
-            err = f"{bad} geçersiz (NaN/inf) köşe" if bad else ""
+            err = t("{n} geçersiz (NaN/inf) köşe").format(n=bad) if bad else ""
             return StlInfo(path, n, np.array([lo, hi], dtype=float) if np.isfinite(lo).all() else None, error=err)
         # ASCII
         data = path.read_bytes()
         if not data.lstrip().lower().startswith(b"solid"):
-            return StlInfo(path, n, None, error="tanınmayan STL biçimi")
+            return StlInfo(path, n, None, error=t("tanınmayan STL biçimi"))
         v = np.array(_VERTEX.findall(data), dtype=float)
         if not len(v):
-            return StlInfo(path, 0, None, ascii=True, error="köşe bulunamadı")
+            return StlInfo(path, 0, None, ascii=True, error=t("köşe bulunamadı"))
         return StlInfo(path, len(v) // 3, np.array([v.min(0), v.max(0)]), ascii=True)
     except Exception as e:  # bozuk dosya taramayı durdurmasın
         return StlInfo(path, 0, None, error=str(e))
@@ -130,7 +142,7 @@ def classify(kit: KitScan) -> KitScan:
     names = " ".join([kit.root.name] + [p for p in kit.root.parts[-3:]] + [f.path.stem for f in kit.files])
     kit.presupported = bool(_SUPPORT_HINT.search(names))
     if not ok:
-        kit.status, kit.detail = "okunamadı", "; ".join({f.error for f in kit.files})
+        kit.status, kit.detail = READ_FAIL, "; ".join({f.error for f in kit.files})
         return kit
     junk = junk_like(ok)
     if junk:
@@ -138,7 +150,8 @@ def classify(kit: KitScan) -> KitScan:
         ok = [f for f in ok if f.path not in junk]
     _classify(kit, ok)
     if kit.junk:
-        kit.detail = (kit.detail + "; " if kit.detail else "") + "reklam dosyası sayılmadı: " + ", ".join(kit.junk)
+        kit.detail = (kit.detail + "; " if kit.detail else "") \
+            + t("reklam dosyası sayılmadı: {files}").format(files=", ".join(kit.junk))
     return kit
 
 
@@ -147,7 +160,7 @@ def _classify(kit: KitScan, ok: list[StlInfo]) -> KitScan:
     lo, hi = B[:, 0].min(0), B[:, 1].max(0)
     kit.extent = hi - lo
     if len(ok) == 1:
-        kit.status = "tek parça"
+        kit.status = SINGLE
         return kit
     ext = B[:, 1] - B[:, 0]
     scale = float(np.median(ext.max(1)))
@@ -160,8 +173,9 @@ def _classify(kit: KitScan, ok: list[StlInfo]) -> KitScan:
     centered = np.all(np.abs(centers[:, free]) < 0.02 * ext.max(1)[:, None] + 0.5, axis=1).mean() > 0.8
     margin = max(1.0, 0.01 * scale)
     if len(zeroed) >= 2 or centered:
-        kit.status = "dağınık"
-        kit.detail = "her parça orijinde (ortalanmış)" if centered else f"{','.join(kit.zeroed_axes)} eksenlerinde sıfırlanmış"
+        kit.status = SCATTERED
+        kit.detail = t("her parça orijinde (ortalanmış)") if centered \
+            else t("{axes} eksenlerinde sıfırlanmış").format(axes=",".join(kit.zeroed_axes))
         return kit
     if len(zeroed) == 1:
         keep = [k for k in range(3) if k != zeroed[0]]
@@ -169,20 +183,23 @@ def _classify(kit: KitScan, ok: list[StlInfo]) -> KitScan:
         kit.connected_frac = len(comps[0]) / len(ok)
         # Plate'e dizilmiş kitlerde 2B izdüşümler ayrık olur; Rango tipinde iç içe geçer.
         if kit.connected_frac >= 0.75:
-            kit.status = "kısmen kaymış"
-            kit.detail = f"{kit.zeroed_axes[0].upper()} ekseni parça başına sıfırlanmış, diğer eksenler korunmuş"
+            kit.status = SHIFTED
+            kit.detail = t("{axis} ekseni parça başına sıfırlanmış, diğer eksenler korunmuş").format(
+                axis=kit.zeroed_axes[0].upper())
         else:
-            kit.status = "dağınık"
-            kit.detail = f"{kit.zeroed_axes[0].upper()}=0 ama parçalar ayrık yerleşmiş (plate düzeni?)"
+            kit.status = SCATTERED
+            kit.detail = t("{axis}=0 ama parçalar ayrık yerleşmiş (plate düzeni?)").format(
+                axis=kit.zeroed_axes[0].upper())
         return kit
     comps = _components(B, [0, 1, 2], margin)
     kit.connected_frac = len(comps[0]) / len(ok)
     if kit.connected_frac >= 0.75:
-        kit.status = "tam montajlı"
-        kit.detail = f"bbox'lar tek kümede (%{kit.connected_frac*100:.0f})"
+        kit.status = ASSEMBLED
+        kit.detail = t("bbox'lar tek kümede (%{pct})").format(pct=f"{kit.connected_frac*100:.0f}")
     else:
-        kit.status = "dağınık"
-        kit.detail = f"en büyük bağlı küme %{kit.connected_frac*100:.0f}, {len(comps)} küme"
+        kit.status = SCATTERED
+        kit.detail = t("en büyük bağlı küme %{pct}, {n} küme").format(
+            pct=f"{kit.connected_frac*100:.0f}", n=len(comps))
     return kit
 
 

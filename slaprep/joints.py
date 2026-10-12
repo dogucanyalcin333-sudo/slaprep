@@ -18,6 +18,8 @@ import open3d as o3d
 import trimesh
 from scipy.spatial import cKDTree
 
+from .i18n import t
+
 from .geom import DistanceField, boxes_overlap
 
 COVER_RAY = 1.0        # mm: normal yönünde bu mesafede başka parça varsa yüzey örtülü
@@ -344,7 +346,7 @@ def wall_direction(run, names, feats) -> tuple[np.ndarray, str]:
         k = "xyz".index(s.wall_side.lower().lstrip("+-"))
         v = np.zeros(3)
         v[k] = -1.0 if s.wall_side.startswith("-") else 1.0
-        return v, "elle (--wall-side)"
+        return v, t("elle (--wall-side)")
     up = asm.up_axis
     lo = np.min([run.parts[n].bounds[0] + asm.offsets[n] for n in names], axis=0)
     hi = np.max([run.parts[n].bounds[1] + asm.offsets[n] for n in names], axis=0)
@@ -358,7 +360,7 @@ def wall_direction(run, names, feats) -> tuple[np.ndarray, str]:
     if abs(tot) > 1.0:
         v = np.zeros(3)
         v[depth] = np.sign(tot)
-        return v, "anahtar yuvası yönünden"
+        return v, t("anahtar yuvası yönünden")
     # 2) düz arka yüz: o yöne bakan düz alan
     area = {}
     for sgn in (1.0, -1.0):
@@ -369,7 +371,7 @@ def wall_direction(run, names, feats) -> tuple[np.ndarray, str]:
         area[sgn] = a
     v = np.zeros(3)
     v[depth] = max(area, key=area.get)
-    return v, "en düz yüzden tahmin"
+    return v, t("en düz yüzden tahmin")
 
 
 def build_maps(run) -> dict[str, SurfaceMap]:

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .geom import DistanceField
+from .i18n import t
 from .io import Part
 
 # Sonda duran varyant ekleri: _V1, -v2, _A, _alt, _alt2, option1, version 2, nohat, with_hat ...
@@ -34,7 +35,7 @@ class VariantGroup:
 
     def describe(self) -> str:
         rest = [m for m in self.members if m not in self.selected]
-        return f"{' + '.join(self.selected)} (alternatif: {', '.join(rest)})"
+        return " + ".join(self.selected) + " " + t("(alternatif: {others})").format(others=", ".join(rest))
 
 
 def name_stem(name: str) -> str | None:

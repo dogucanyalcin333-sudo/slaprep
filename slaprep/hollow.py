@@ -14,6 +14,7 @@ import trimesh
 from skimage.measure import marching_cubes
 
 from .geom import DistanceField
+from .i18n import t
 
 
 @dataclass
@@ -47,7 +48,7 @@ def to_manifold(m: trimesh.Trimesh, repair: bool = False) -> mf.Manifold:
     man = _mk_manifold(m)
     if man.status() == mf.Error.NoError or not repair:
         if man.status() != mf.Error.NoError:
-            raise ValueError(f"manifold değil: {man.status()}")
+            raise ValueError(t("manifold değil: {status}").format(status=man.status()))
         return man
     r = m.copy()
     trimesh.repair.fix_winding(r)
@@ -59,15 +60,15 @@ def to_manifold(m: trimesh.Trimesh, repair: bool = False) -> mf.Manifold:
     try:
         r = pymeshfix_repair(m, timeout=PMF_TIMEOUT)
     except TimeoutError as e:
-        raise ValueError(f"onarım: {e}") from None
+        raise ValueError(t("onarım: {err}").format(err=e)) from None
     if r is not None:
         ok, why = _faithful(m, r)
         if not ok:          # pymeshfix şekli bozuyorsa (Hulkbuster torso) bozuk parça çıkmasın: çağıran dolu bırakır
-            raise ValueError(f"onarım şekli bozuyordu ({why})")
+            raise ValueError(t("onarım şekli bozuyordu ({why})").format(why=why))
         man = _mk_manifold(r)
         if man.status() == mf.Error.NoError:
             return man
-    raise ValueError(f"manifold değil, onarılamadı: {man.status()}")
+    raise ValueError(t("manifold değil, onarılamadı: {status}").format(status=man.status()))
 
 
 def from_manifold(man: mf.Manifold) -> trimesh.Trimesh:
@@ -140,12 +141,13 @@ def hollow_part(mesh: trimesh.Trimesh, wall: float, *, min_cavity_ml: float, min
     res = res or min(0.3, wall / 5)
     vol_part = abs(mesh.volume)
     if not force and vol_part < min_ml * 1000:          # kavite eşiğe hiç ulaşamaz (harf, saç teli gibi)
-        return HollowResult(False, f"dolu: parça {vol_part / 1000:.1f} ml (< {min_ml} ml)", seconds=time.time() - t0,
-                            resolution=res)
+        return HollowResult(False, t("dolu: parça {ml} ml (< {min} ml)").format(
+            ml=f"{vol_part / 1000:.1f}", min=min_ml), seconds=time.time() - t0, resolution=res)
     f = field_ or DistanceField(mesh)
     shell = inner_shell(mesh, wall, res, f)
     if shell is None or len(shell.faces) == 0:
-        return HollowResult(False, f"duvar {wall} mm için parça çok ince", seconds=time.time() - t0, resolution=res)
+        return HollowResult(False, t("duvar {wall} mm için parça çok ince").format(wall=wall),
+                            seconds=time.time() - t0, resolution=res)
     # Marching cubes dejenere üçgenleri atarken iç kabukta minik delikler bırakabiliyor (Atsu Split_Pants: 0.30 mm
     # ızgarada 12 açık kenar; 0.27 / 0.33 mm'de kusursuz). İç yüzey görünmez: önce delikleri kapat, olmazsa ızgarayı
     # biraz kaydırıp yeniden hesapla; ancak hiçbiri olmazsa parça dolu kalır.
@@ -163,7 +165,7 @@ def hollow_part(mesh: trimesh.Trimesh, wall: float, *, min_cavity_ml: float, min
             if shell is None or len(shell.faces) == 0:
                 break
     if man is None:
-        return HollowResult(False, "dolu: iç kabuk geçersiz çıktı", seconds=time.time() - t0, resolution=res)
+        return HollowResult(False, t("dolu: iç kabuk geçersiz çıktı"), seconds=time.time() - t0, resolution=res)
     comps = sorted(man.decompose(), key=lambda m: -m.volume())
     keep, dropped = [], 0.0
     for c in comps:
@@ -181,19 +183,22 @@ def hollow_part(mesh: trimesh.Trimesh, wall: float, *, min_cavity_ml: float, min
             keep = keep[:max_cavities]
             total = sum(c.volume() for c in keep)
         elif not force:
-            return HollowResult(False, f"{len(keep)} ayrı kavite çıktı (> {max_cavities}), her birine delik pratik değil",
-                                dropped_ml=dropped / 1000, seconds=time.time() - t0, resolution=res)
+            return HollowResult(False, t("{n} ayrı kavite çıktı (> {max}), her birine delik pratik değil").format(
+                n=len(keep), max=max_cavities),
+                dropped_ml=dropped / 1000, seconds=time.time() - t0, resolution=res)
     if not force and (total < min_ml * 1000 or total < min_frac * vol_part):
-        why = (f"kavite {total/1000:.1f} ml (< {min_ml} ml)" if total < min_ml * 1000
-               else f"kavite parçanın %{100*total/vol_part:.0f}'i (< %{min_frac*100:.0f})")
-        return HollowResult(False, f"dolu: {why}", dropped_ml=dropped / 1000, seconds=time.time() - t0, resolution=res)
+        why = (t("kavite {ml} ml (< {min} ml)").format(ml=f"{total/1000:.1f}", min=min_ml) if total < min_ml * 1000
+               else t("kavite parçanın %{pct}'i (< %{min})").format(
+                   pct=f"{100*total/vol_part:.0f}", min=f"{min_frac*100:.0f}"))
+        return HollowResult(False, t("dolu: {why}").format(why=why), dropped_ml=dropped / 1000,
+                            seconds=time.time() - t0, resolution=res)
     if not keep:
-        return HollowResult(False, "kavite yok", seconds=time.time() - t0, resolution=res)
+        return HollowResult(False, t("kavite yok"), seconds=time.time() - t0, resolution=res)
     cavs = []
     for c in keep:
         cs = c.simplify(res * 0.25)         # iç yüzey görünmez; manifold korunarak sadeleştir
         cavs.append(Cavity(from_manifold(cs), cs.volume()))
-    return HollowResult(True, f"{len(cavs)} kavite", cavs, dropped / 1000, time.time() - t0, res)
+    return HollowResult(True, t("{n} kavite").format(n=len(cavs)), cavs, dropped / 1000, time.time() - t0, res)
 
 
 def measure_wall(outer: trimesh.Trimesh, cavities: list[Cavity], wall: float, n: int = 4000, seed: int = 0):

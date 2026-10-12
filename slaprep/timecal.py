@@ -15,6 +15,7 @@ import time
 from dataclasses import asdict, dataclass, field
 
 from . import prefs
+from .i18n import t
 
 KEY = "time_calibration"
 
@@ -97,10 +98,11 @@ def fit(points: list[CalPoint], overhead_min: float) -> tuple[float, float] | No
 
 def describe(points: list[CalPoint], result: tuple[float, float] | None) -> str:
     if not points or result is None:
-        return "Süre ayarı yok: bir plate'in gerçek baskı süresini girerseniz tahminler ona göre ayarlanır."
+        return t("Süre ayarı yok: bir plate'in gerçek baskı süresini girerseniz tahminler ona göre ayarlanır.")
     lt, ov = result
-    return (f"Süre ayarı {len(points)} ölçümden: katman {lt:.2f} sn, plate başına +{ov:.0f} dk"
-            + (" (tek ölçüm: ek süre sabit tutuldu)" if len(points) == 1 else ""))
+    return (t("Süre ayarı {n} ölçümden: katman {layer} sn, plate başına +{over} dk").format(
+        n=len(points), layer=f"{lt:.2f}", over=f"{ov:.0f}")
+        + (t(" (tek ölçüm: ek süre sabit tutuldu)") if len(points) == 1 else ""))
 
 
 def calibrated(overhead_min: float) -> tuple[float, float] | None:
