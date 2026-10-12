@@ -1,15 +1,105 @@
-"""Varsayılan parametreler ve kit başına slaprep.yaml."""
+"""Varsayılan parametreler, yazıcı kütüphanesi ve kit başına slaprep.yaml."""
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
 import yaml
 
-PRINTERS = {
-    # ad: (X, Y, Z) mm — X/Y plate, Z yükseklik
-    "m7": (223.0, 126.0, 230.0),
-}
+from . import prefs
+
+_PRINTER_FILE = Path(__file__).parent / "printers.json"
+CUSTOM_KEY = "printers"            # kullanıcının eklediği yazıcılar: ~/.slaprep_prefs.json
+DEFAULT_PRINTER = "anycubic-photon-mono-m7"
+CUSTOM_PRINTER = "custom"          # plate boyutu elle verildi (veri anahtarı: çevrilmez)
+
+
+def _load_library() -> tuple[dict[str, tuple[float, float, float]], dict[str, str], dict[str, str]]:
+    """printers.json → ({id: (X, Y, Z)}, {id: görünen ad}, {eski ad: id})."""
+    vols: dict[str, tuple[float, float, float]] = {}
+    names: dict[str, str] = {}
+    aliases: dict[str, str] = {}
+    try:
+        data = json.loads(_PRINTER_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        data = {}
+    for p in data.get("printers", []):
+        try:
+            pid, vol = p["id"], tuple(float(x) for x in p["volume"])
+        except Exception:
+            continue
+        if len(vol) != 3:
+            continue
+        vols[pid] = vol                                   # type: ignore[assignment]
+        names[pid] = p.get("name", pid)
+        for a in p.get("aliases", []):
+            aliases[str(a)] = pid
+    return vols, names, aliases
+
+
+_LIB_VOLUMES, _LIB_NAMES, PRINTER_ALIASES = _load_library()
+
+
+def custom_printers() -> dict[str, tuple[float, float, float]]:
+    """Kullanıcının kendi eklediği yazıcılar (bu bilgisayarda saklanır)."""
+    out: dict[str, tuple[float, float, float]] = {}
+    for pid, p in (prefs.read(CUSTOM_KEY) or {}).items():
+        try:
+            vol = tuple(float(x) for x in (p["volume"] if isinstance(p, dict) else p))
+        except Exception:
+            continue
+        if len(vol) == 3:
+            out[pid] = vol                                # type: ignore[assignment]
+    return out
+
+
+def printers() -> dict[str, tuple[float, float, float]]:
+    """Kütüphane + kullanıcının yazıcıları: {id: (X, Y, Z) mm}."""
+    return {**_LIB_VOLUMES, **custom_printers()}
+
+
+def printer_name(pid: str) -> str:
+    """Görünen ad (kullanıcının eklediği yazıcıda kendi verdiği ad)."""
+    custom = (prefs.read(CUSTOM_KEY) or {}).get(pid)
+    if isinstance(custom, dict) and custom.get("name"):
+        return str(custom["name"])
+    return _LIB_NAMES.get(pid, pid)
+
+
+def resolve_printer(pid: str | None) -> str | None:
+    """Eski/kısa adı (ör. "m7") kütüphane id'sine çevir; tanınmıyorsa None."""
+    if not pid:
+        return None
+    pid = PRINTER_ALIASES.get(pid, pid)
+    return pid if pid in printers() else None
+
+
+def build_volume_of(pid: str | None) -> tuple[float, float, float] | None:
+    key = resolve_printer(pid)
+    return printers()[key] if key else None
+
+
+def add_custom_printer(pid: str, name: str, volume) -> None:
+    """Kullanıcının yazıcısını kalıcı olarak kaydet."""
+    d = prefs.read(CUSTOM_KEY) or {}
+    d[pid] = {"name": name, "volume": [float(x) for x in volume]}
+    prefs.write(CUSTOM_KEY, d)
+
+
+def parse_build_volume(text: str) -> tuple[float, float, float]:
+    """"218x123x230" / "218*123*230" / "218,123,230" → (218.0, 123.0, 230.0)."""
+    bits = [b for b in text.replace("*", "x").replace("X", "x").replace(",", "x").split("x") if b.strip()]
+    if len(bits) != 3:
+        raise ValueError(text)
+    vol = tuple(float(b) for b in bits)
+    if any(v <= 0 for v in vol):
+        raise ValueError(text)
+    return vol                                            # type: ignore[return-value]
+
+
+# Geriye uyumluluk: eski kod PRINTERS sözlüğünü kullanıyordu
+PRINTERS = _LIB_VOLUMES
 
 OUT_DIR = "_slaprep"
 SEPARATE_GROUP = "ayrı"          # kullanıcının "ayrı plate" dediği parçaların plate grubu (plates\ayrı\plate_01.stl)
@@ -62,11 +152,13 @@ class Settings:
     tilt_max: float = 45.0
     support_height: float = 5.0
     gap: float = 3.0
-    printer: str = "m7"
-    build_volume: tuple[float, float, float] = PRINTERS["m7"]
+    printer: str = DEFAULT_PRINTER
+    build_volume: tuple[float, float, float] = _LIB_VOLUMES[DEFAULT_PRINTER]
     plates: int | None = None
     plates_by_folder: bool | None = None # None: kitte birden çok alt klasör varsa otomatik açık
     plate_goal: str = "time"             # time: en kısa toplam baskı süresi | plates: en az plate
+    presupported: bool = False           # kit hazır desteklenmiş: hollow/delik yok, duruş korunur, sadece plate'e
+    #                                      dizilir (destekler modelin içinde: döndürmek/eğmek baskıyı bozar)
     steps: str = "all"                   # all: hollow + delik + plate | plates: sadece plate'e diz (dolu) |
     #                                      hollow: sadece hollow + delik (plate yok, parçalar orijinal duruşta)
     layer_height: float = 0.05           # mm (süre tahmini için; CHITUBOX'taki değerinizi girin)
@@ -90,6 +182,8 @@ class Settings:
         names = {f.name for f in fields(cls)}
         s = cls(**{k: v for k, v in d.items() if k in names})
         s.build_volume = tuple(float(x) for x in s.build_volume)
+        # eski kitlerde yazıcı kısa adıyla ("m7") kayıtlı: kütüphane id'sine çevir (plate boyutu dosyadan gelir)
+        s.printer = PRINTER_ALIASES.get(s.printer, s.printer)
         return s
 
 

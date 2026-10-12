@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 
 from . import prefs
@@ -33,15 +34,31 @@ _catalog: dict[str, str] = {}
 _missing: set[str] = set()
 
 
+def system_locale() -> str:
+    """İşletim sisteminin bölge kodu, ör. "tr_TR" / "en_US" (bulunamazsa "").
+
+    locale.getdefaultlocale() Python 3.15'te kaldırılıyor, setlocale ise süreç genelinde yan etki
+    bırakıyor: ortam değişkenleri, Windows'ta da kullanıcı arayüzü dili okunur.
+    """
+    for var in ("LC_ALL", "LC_MESSAGES", "LANG", "LANGUAGE"):
+        v = (os.environ.get(var) or "").strip()
+        if v and v not in ("C", "POSIX"):
+            return v.split(":")[0].split(".")[0]
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            import locale as _loc
+
+            lcid = ctypes.windll.kernel32.GetUserDefaultUILanguage()       # type: ignore[attr-defined]
+            return _loc.windows_locale.get(lcid, "")
+        except Exception:
+            return ""
+    return ""
+
+
 def _os_lang() -> str | None:
     """İşletim sisteminin arayüz dili (tr/en); bulunamazsa None."""
-    try:
-        import locale
-
-        code = locale.getdefaultlocale()[0] or ""
-    except Exception:
-        code = ""
-    code = (code or os.environ.get("LANG", "")).lower()
+    code = system_locale().lower()
     for lang in LANGS:
         if code.startswith(lang):
             return lang

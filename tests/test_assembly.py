@@ -263,6 +263,30 @@ def test_assembly_clearance_gap_counts_as_contact():
     assert "hat" in w and "body" not in w and "head" not in w, asm.warnings
 
 
+def test_base_at_origin_is_printed_when_figure_sits_on_it():
+    """Kaide dosyada orijinde başlıyor (stüdyolarda çok yaygın: XY'de ortalı, tabanı 0) ve üstündeki gövde de
+    XY'de ortalı, tabanı orijine yakın. İkisi de "orijinde unutulmuş" adayı görünür; ama birbirlerine temiz
+    oturuyorlar: hiçbiri montaj dışı sayılmamalı ve kaide basılmalı.
+
+    Eski davranış: kaidenin tek temiz teması gövdeyleydi, gövde de aday olduğu için kanıt sayılmıyor, kaide
+    "kitin birleşik sürümü" diye basılmıyordu (figür kaidesiz basılırdı) — sessiz ve pahalı bir hata.
+    """
+    base = _subdivide(_box([-30, -20, 0], [30, 20, 10]))             # orijinde, XY ortalı
+    body = _subdivide(_box([-15, -11, 10], [15, 11, 60]))            # kaidenin üstünde, XY ortalı
+    head = _subdivide(_box([-12, -12, 60], [12, 12, 84]))
+    arm_l = _subdivide(_box([-26, -6, 40], [-15, 6, 51]))
+    arm_r = _subdivide(_box([15, -6, 40], [26, 6, 51]))
+    parts = [_part(n, m) for n, m in (("Base", base), ("Torso", body), ("Head", head),
+                                      ("Arm_L", arm_l), ("Arm_R", arm_r))]
+    asm, _, _ = solve_assembly(parts)
+    assert asm.mode == "tam"
+    assert "Base" in asm.selected, f"kaide montaj dışı bırakıldı: {asm.warnings}"
+    assert asm.placed["Base"]
+    byname = {p.name: p for p in parts}
+    assert abs(asm.height(byname) - 84.0) < 1.0           # kaide dahil boy
+    assert not any("birleşik / alternatif" in w for w in asm.warnings), asm.warnings
+
+
 def _ad_plate(x0, x1, y0, y1, z0, z1, letters=8):
     """Dağıtıcı reklam plakası gibi: harf başına bir düşük üçgenli kutu, düz ve geniş."""
     xs = np.linspace(x0, x1, letters + 1)

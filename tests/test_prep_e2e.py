@@ -44,6 +44,21 @@ def test_steps_plates_only(tmp_path):
     assert all(r.plate for r in run.results.values() if r.printed)
 
 
+def test_presupported_keeps_pose_and_skips_hollow(tmp_path):
+    """Hazır desteklenmiş kit: destekler modelin içinde. Hollow/delik yapılmamalı ve parça döndürülmemeli —
+    yalnızca plate'e dizilmeli (tabanı z=0'a oturur, dik duruşu korunur)."""
+    kit = _small_kit(tmp_path)
+    run = _prep(kit, presupported=True)
+    assert not any(r.hollowed or r.holes for r in run.results.values())
+    assert all("hazır desteklenmiş" in r.hollow_reason for r in run.results.values() if r.printed)
+    assert all(r.plate for r in run.results.values() if r.printed)          # yine de plate'e dizilir
+    body = trimesh.load(kit / "_slaprep" / "parts" / "Body.stl", force="mesh")
+    e = body.bounds[1] - body.bounds[0]
+    assert np.argmax(e) == 2 and abs(e[2] - 60) < 0.1                       # dik duruş korundu (60 mm yüksek)
+    assert abs(body.bounds[0][2]) < 0.01                                    # tabanı plate'te
+    assert "duruş korundu" in run.results["Body"].orientation
+
+
 def test_steps_hollow_only(tmp_path):
     """Sadece hollow + delik: plate yok; parça hollow edilir ve orijinal duruşunda (dönmeden) yazılır."""
     import trimesh

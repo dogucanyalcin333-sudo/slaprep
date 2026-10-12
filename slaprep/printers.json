@@ -1,0 +1,43 @@
+{
+  "_note": "Resin (MSLA) printer build volumes in mm as [X, Y, Z], from manufacturer specifications. X/Y is the plate, Z the height. Values are nominal: check them against your own slicer before a long print, and send a pull request if one is wrong. Your own printer can be added without touching this file: pick 'Custom' in the application, or use --build-volume XxYxZ on the command line; it is then saved in ~/.slaprep_prefs.json.",
+  "printers": [
+    { "id": "anycubic-photon-mono-2",       "name": "Anycubic Photon Mono 2",        "volume": [143.0, 89.0, 165.0] },
+    { "id": "anycubic-photon-mono-4",       "name": "Anycubic Photon Mono 4",        "volume": [153.4, 77.0, 165.0] },
+    { "id": "anycubic-photon-mono-4-ultra", "name": "Anycubic Photon Mono 4 Ultra",  "volume": [153.4, 77.0, 165.0] },
+    { "id": "anycubic-photon-mono-x-6ks",   "name": "Anycubic Photon Mono X 6Ks",    "volume": [195.0, 122.0, 200.0] },
+    { "id": "anycubic-photon-mono-m5",      "name": "Anycubic Photon Mono M5",       "volume": [218.0, 123.0, 200.0] },
+    { "id": "anycubic-photon-mono-m5s",     "name": "Anycubic Photon Mono M5s",      "volume": [218.0, 123.0, 200.0] },
+    { "id": "anycubic-photon-mono-m7",      "name": "Anycubic Photon Mono M7",       "volume": [223.0, 126.0, 230.0],
+      "aliases": ["m7"] },
+    { "id": "anycubic-photon-mono-m7-pro",  "name": "Anycubic Photon Mono M7 Pro",   "volume": [223.0, 126.0, 230.0] },
+    { "id": "anycubic-photon-mono-m7-max",  "name": "Anycubic Photon Mono M7 Max",   "volume": [298.0, 164.0, 300.0] },
+
+    { "id": "elegoo-mars-3",                "name": "Elegoo Mars 3",                 "volume": [143.0, 89.0, 175.0] },
+    { "id": "elegoo-mars-3-pro",            "name": "Elegoo Mars 3 Pro",             "volume": [143.0, 89.0, 175.0] },
+    { "id": "elegoo-mars-4",                "name": "Elegoo Mars 4",                 "volume": [153.4, 77.8, 175.0] },
+    { "id": "elegoo-mars-4-ultra",          "name": "Elegoo Mars 4 Ultra",           "volume": [153.4, 77.8, 165.0] },
+    { "id": "elegoo-mars-5",                "name": "Elegoo Mars 5",                 "volume": [153.4, 77.0, 165.0] },
+    { "id": "elegoo-mars-5-ultra",          "name": "Elegoo Mars 5 Ultra",           "volume": [153.4, 77.0, 165.0] },
+    { "id": "elegoo-saturn-2",              "name": "Elegoo Saturn 2",               "volume": [219.0, 123.0, 250.0] },
+    { "id": "elegoo-saturn-3",              "name": "Elegoo Saturn 3",               "volume": [218.9, 122.9, 250.0] },
+    { "id": "elegoo-saturn-3-ultra",        "name": "Elegoo Saturn 3 Ultra",         "volume": [218.9, 122.9, 260.0] },
+    { "id": "elegoo-saturn-4",              "name": "Elegoo Saturn 4",               "volume": [218.9, 122.9, 220.0] },
+    { "id": "elegoo-saturn-4-ultra",        "name": "Elegoo Saturn 4 Ultra",         "volume": [211.7, 118.4, 220.0] },
+    { "id": "elegoo-saturn-4-ultra-16k",    "name": "Elegoo Saturn 4 Ultra 16K",     "volume": [211.7, 118.4, 220.0] },
+    { "id": "elegoo-jupiter-se",            "name": "Elegoo Jupiter SE",             "volume": [277.8, 156.3, 300.0] },
+
+    { "id": "phrozen-sonic-mini-8k",        "name": "Phrozen Sonic Mini 8K",         "volume": [165.0, 72.0, 180.0] },
+    { "id": "phrozen-sonic-mini-8k-s",      "name": "Phrozen Sonic Mini 8K S",       "volume": [165.0, 72.0, 170.0] },
+    { "id": "phrozen-sonic-mighty-8k",      "name": "Phrozen Sonic Mighty 8K",       "volume": [218.0, 123.0, 235.0] },
+    { "id": "phrozen-sonic-mighty-revo",    "name": "Phrozen Sonic Mighty Revo",     "volume": [223.0, 126.0, 235.0] },
+    { "id": "phrozen-sonic-mega-8k",        "name": "Phrozen Sonic Mega 8K",         "volume": [330.0, 185.0, 400.0] },
+    { "id": "phrozen-sonic-mega-8k-s",      "name": "Phrozen Sonic Mega 8K S",       "volume": [330.0, 185.0, 300.0] },
+
+    { "id": "creality-halot-one",           "name": "Creality Halot One",            "volume": [127.0, 80.0, 160.0] },
+    { "id": "creality-halot-mage",          "name": "Creality Halot Mage",           "volume": [228.0, 128.0, 230.0] },
+    { "id": "creality-halot-mage-pro",      "name": "Creality Halot Mage Pro",       "volume": [228.0, 128.0, 230.0] },
+
+    { "id": "uniformation-gktwo",           "name": "UniFormation GKtwo",            "volume": [228.0, 128.0, 245.0] },
+    { "id": "prusa-sl1s-speed",             "name": "Prusa SL1S Speed",              "volume": [127.0, 80.0, 150.0] }
+  ]
+}

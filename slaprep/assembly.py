@@ -659,10 +659,12 @@ def misplaced_parts(parts_list: list[Part], fields: dict, samples: dict, strong:
     cand = [p for p in parts_list if _at_origin(p)]
     if not cand:
         return []
-    lost = []
+    cand_names = {p.name for p in cand}
+    clean: dict[str, dict[str, float]] = {}     # aday → {komşu: en büyük temiz temas}
+    flags: dict[str, tuple[bool, bool]] = {}    # aday → (deep, heap)
     for p in cand:
         deep = heap = False
-        best = 0.0                           # orijinde olmayan bir parçayla en büyük temiz temas
+        clean[p.name] = {}
         for o in parts_list:
             if o is p or not boxes_overlap(p.bounds, o.bounds, range(3), margin=GAP_TOL):
                 continue
@@ -671,14 +673,31 @@ def misplaced_parts(parts_list: list[Part], fields: dict, samples: dict, strong:
                 if pe > max(20.0, 0.15 * c + 2.0):
                     deep = True
                     heap |= o in cand        # orijinde başka bir parçayla iç içe: dosyada orijine yığılmışlar
-                elif o not in cand and c >= MIN_CONTACT:
-                    best = max(best, c)
+                elif c >= MIN_CONTACT:
+                    clean[p.name][o.name] = max(clean[p.name].get(o.name, 0.0), c)
                 # orijinde birebir üst üste iki kopya (Maomao: Base_No_Fence ↔ Base_W_Fence_No_Cuts)
                 heap |= o in cand and c >= 0.5 * min(a.area, b.area)
-        # Yığındaki parça montaja ancak tesadüfen değer (Atsu Stand_Ground_Part_2 şapkanın kenarına); orijinde
-        # başlayan gerçek bir kaide ise figürle yüzeyinin belirgin bir kısmı kadar temas eder.
-        if best == 0.0 or (deep and best < strong) or (heap and best < max(strong, 0.1 * p.area)):
-            lost.append(p.name)
+        flags[p.name] = (deep, heap)
+
+    # Yerinde olduğu bilinen parçalar: orijinde durmayanlar. Bunlara temiz oturan aday da yerindedir ve kendisi
+    # dayanak olur: kaidesi orijinde başlayan bir figürde gövde de (XY'de ortalı, tabanı z≈10) aday görünür;
+    # kaide yalnızca ona değdiği için eskiden ikisi birbirinin kanıtını geçersiz kılıyor, kaide basılmıyordu.
+    inplace = {p.name for p in parts_list if p.name not in cand_names}
+    area = {p.name: p.area for p in parts_list}
+    rescued = True
+    while rescued:
+        rescued = False
+        for p in cand:
+            if p.name in inplace:
+                continue
+            best = max((c for o, c in clean[p.name].items() if o in inplace), default=0.0)
+            deep, heap = flags[p.name]
+            # Yığındaki parça montaja ancak tesadüfen değer (Atsu Stand_Ground_Part_2 şapkanın kenarına); orijinde
+            # başlayan gerçek bir kaide ise figürle yüzeyinin belirgin bir kısmı kadar temas eder.
+            if best > 0.0 and not (deep and best < strong) and not (heap and best < max(strong, 0.1 * area[p.name])):
+                inplace.add(p.name)
+                rescued = True
+    lost = [p.name for p in cand if p.name not in inplace]
     return lost if len(lost) <= 0.4 * len(parts_list) else []   # çoğu ortadaysa kit zaten montajsız
 
 

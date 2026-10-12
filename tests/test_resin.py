@@ -9,7 +9,9 @@ D = {"parts": {
 
 
 def test_plate_group_and_total():
-    rs = resin_summary(D, ResinPrefs(price_l=1000.0, separate_price_l=2000.0, extra_pct=10.0, bottle_ml=500.0))
+    # para birimi açıkça verilir: varsayılanı işletim sisteminin bölgesine göre değişir (TL / USD / EUR …)
+    rs = resin_summary(D, ResinPrefs(price_l=1000.0, separate_price_l=2000.0, extra_pct=10.0, bottle_ml=500.0,
+                                     currency="TL"))
     assert rs["plates"]["plate_01"]["ml"] == 330.0 and rs["plates"]["plate_01"]["cost"] == 330.0
     main, sep = rs["groups"]["ana"], rs["groups"]["ayrı"]
     assert main["ml"] == 440.0 and main["bottles"] == 1 and main["cost"] == 440.0

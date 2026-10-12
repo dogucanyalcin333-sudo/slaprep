@@ -260,6 +260,10 @@ class Run:
         self.height_after = self.height_before * self.scale
         if (self.asm is None or self.asm.mode == "bilinmiyor") and s.orig_height:
             self.height_after = s.orig_height * self.scale        # montaj yok: kullanıcının verdiği orijinal boy
+        if s.presupported and s.steps == "hollow":
+            # "sadece hollow" istendi ama hazır desteklenmiş kitte hollow yapılmıyor: yapılacak iş kalmaz
+            self.warnings.append("Hazır desteklenmiş kitte hollow yapılmaz: parçalar olduğu gibi kopyalanacak. "
+                                 "Plate'e dizmek için 'Yönlendir + plate'e diz' işlemini açın.")
         self.surface_maps(render=False)
         work = self.out / "cache" / "work"
         work.mkdir(parents=True, exist_ok=True)
@@ -425,7 +429,11 @@ class Run:
         force_solid = sio.matches(n, p.group, s.solid, p.path.stem)
         force_hollow = sio.matches(n, p.group, s.hollow, p.path.stem)
         cavities = []
-        if s.steps == "plates":
+        if s.presupported:
+            # Hazır desteklenmiş kit: destekler modelin içinde. Hollow etmek destek köklerini açar,
+            # yönlendirmek desteklerin yönünü bozar: parça olduğu gibi bırakılıp sadece plate'e dizilir.
+            r.hollow_reason = "hazır desteklenmiş: dolu bırakıldı"
+        elif s.steps == "plates":
             r.hollow_reason = "sadece plate dizimi: dolu"
         elif force_solid:
             r.hollow_reason = "dolu: sizin tercihiniz (--solid)"
@@ -454,9 +462,15 @@ class Run:
                     vis = np.concatenate([vis, np.ones(len(vp), bool)])
                 cand_by_d[d] = find_candidates(full, cavities, pts, nrm, s.wall, d, vis)
             cand = cand_by_d[min(cand_by_d)]       # yönlendirme skoru için en geniş aday kümesi
-        ori = orient_part(lite, m.hidden, m.pin, up, s.build_volume, s.support_height, s.gap,
-                          (s.tilt_min, s.tilt_max), cand, cavities, s.wall,
-                          vis=getattr(m, "visibility", None), front=self.front_vector)
+        if s.presupported:
+            from .orient import keep_pose
+
+            # destekli parçanın altlığı z=0'da: ayrıca kaldırılmaz (support_height eklenmez)
+            ori = keep_pose(lite, s.build_volume, s.gap)
+        else:
+            ori = orient_part(lite, m.hidden, m.pin, up, s.build_volume, s.support_height, s.gap,
+                              (s.tilt_min, s.tilt_max), cand, cavities, s.wall,
+                              vis=getattr(m, "visibility", None), front=self.front_vector)
         # aşama 1 bitti: ağır veriyi diske yaz, yön global yerleşimde kesinleşecek
         import pickle
 

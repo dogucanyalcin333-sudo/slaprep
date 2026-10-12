@@ -41,8 +41,11 @@ class Orientation:
     footprint: tuple[float, float]
     height: float
     alternatives: list = None      # [best, alt1, ...] plate verimi için (sadece en iyide dolu)
+    kept_pose: bool = False        # hazır desteklenmiş parça: yönlendirme yapılmadı
 
     def describe(self) -> str:
+        if self.kept_pose:
+            return t("hazır desteklenmiş: duruş korundu") + (t(" (SIĞMIYOR)") if not self.fits else "")
         tm = self.terms
         yon = t("eğim {deg}°").format(deg=f"{self.tilt:.0f}") if self.tilt <= 60 else t("serbest yön")
         s = yon + t(", gizli yüz aşağı %{pct}").format(pct=f"{tm.get('hidden_down', 0) * 100:.0f}")
@@ -53,6 +56,33 @@ class Orientation:
         if not self.fits:
             s += t(" (SIĞMIYOR)")
         return s
+
+
+def keep_pose(mesh: trimesh.Trimesh, build: tuple[float, float, float], gap: float = 0.0,
+              support_h: float = 0.0) -> Orientation:
+    """Hazır desteklenmiş (pre-supported) parça için yönlendirme yapmadan plate'e indirme.
+
+    Parçanın duruşu dosyadan geldiği gibi kalır: destekler ve varsa altlık modelin içinde, onları
+    döndürmek ya da eğmek baskıyı bozar. Yalnızca XY'de ortalanır, tabanı z=0'a oturur ve gerekirse
+    Z ekseninde 90° çevrilir (dikey destekler buna duyarsızdır, uzun parça plate'e böyle sığar).
+    """
+    V = np.asarray(mesh.vertices, float)
+    w, d = float(np.ptp(V[:, 0])), float(np.ptp(V[:, 1]))
+    height = float(np.ptp(V[:, 2]))
+    W, D, Z = build
+    R3 = np.eye(3)
+    # kısa kenar X'te kalsın (yerleşim böyle varsayıyor); gerekiyorsa Z'de 90° çevir
+    if d > w and (w + 2 * gap > W or d + 2 * gap > D):
+        R3 = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
+        w, d = d, w
+    P = V @ R3.T
+    T = np.eye(4)
+    T[:3, :3] = R3
+    T[:3, 3] = -np.array([(P[:, 0].min() + P[:, 0].max()) / 2, (P[:, 1].min() + P[:, 1].max()) / 2,
+                          P[:, 2].min() - support_h])
+    fits = (height + support_h <= Z) and (
+        (w + 2 * gap <= W and d + 2 * gap <= D) or (w + 2 * gap <= D and d + 2 * gap <= W))
+    return Orientation(T, np.array([0.0, 0.0, -1.0]), 0.0, fits, 0.0, {}, (w, d), height, kept_pose=True)
 
 
 def rot_to_down(d: np.ndarray) -> np.ndarray:

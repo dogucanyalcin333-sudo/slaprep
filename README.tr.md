@@ -2,6 +2,8 @@
 
 # SLAPrep — SLA baskı öncesi otomatik hazırlık
 
+[![tests](https://github.com/dogucanyalcin333-sudo/slaprep/actions/workflows/tests.yml/badge.svg)](https://github.com/dogucanyalcin333-sudo/slaprep/actions/workflows/tests.yml)
+
 Bölünmüş figür kitlerini (STL) CHITUBOX'a hazır hale getirir: montajı çözer, ölçekler, hollow eder, drenaj
 deliklerini **sadece birleşme yüzeylerine** açar, parçaları yönlendirir ve plate'lere dizer.
 Birleşme yüzeyleri, parçalar birleştirilince komşu parçayla kapanır; baskıdan sonra delik tıkamak gerekmez.
@@ -11,7 +13,21 @@ Kaidenin alt yüzü ve duvar modunda arka yüz de montajdan sonra görünmez, am
 açık kalır. Bu yüzden varsayılan olarak buralara delik açılmaz. İsterseniz *Hollow / delik* sekmesinden
 açabilirsiniz (`--holes-on-bottom`, `--holes-on-wall-back`).
 
-Windows + CHITUBOX için yazılmıştır, Python 3.11+ gerekir.
+Windows için yazılmıştır, Python 3.11+ gerekir. Yazdığı plate'ler düz STL olduğu için her reçine dilimleyicisi
+açar (CHITUBOX, Lychee, Photon Workshop, Halot Box); sadece süre tahmini sizin girdiğiniz katman ayarlarına dayanır.
+
+## İki dakikada deneyin
+
+Elinizde kit yok mu? Kodla üretilen (telif derdi olmayan) küçük bir bölünmüş figür oluşturup hazırlayın:
+
+```
+python tools\make_demo_kit.py demo-kit
+slaprep prep demo-kit --height 90 --printer elegoo-mars-5
+```
+
+Deneme kitinde kaide, gövde, iki kol, iki alternatif kafa (`Head_v1` / `Head_v2`) ve bir ölçek referans çubuğu
+var; pim/yuvalar gerçek. Montaj çözümü, alternatif seçimi, hollow, birleşme yüzeyine delik ve plate yerleşimi
+tek çalıştırmada görülür.
 
 ## Kurulum
 
@@ -37,7 +53,9 @@ SLAPrep tek pencerede çalışır: açıkken kısayola klasör bırakırsanız y
 2. **Analiz et**: montaj, yükseklik, alternatif parçalar (V1/V2, birleşik/bölünmüş) ve gizli yüzeyler bulunur.
 3. Sol kenardaki kartlardan ayarları seçin (kart başlığına tıklayınca açılır/kapanır; açık kalanlar hatırlanır):
    - **İşlemler**: iki onay kutusu. **Hollow + delik** (içi boşaltılır, delikler sadece birleşme yüzeylerine) ve
-     **Yönlendir + plate'e diz**. İkisi açık = tam hazırlık. Sadece plate işaretliyse parçalar dolu kalır; sadece
+     **Yönlendir + plate'e diz**. İkisi açık = tam hazırlık. Üçüncü kutu **Kit hazır desteklenmiş (pre-supported)**:
+     destekleri dosyada gelen kitler için. Parçalara dokunulmaz — hollow edilmez, delik açılmaz, döndürülmez —
+     yalnızca plate'e dizilir; çünkü hollow destek köklerini açar, yeniden yönlendirmek desteklerin yönünü bozar. Sadece plate işaretliyse parçalar dolu kalır; sadece
      hollow işaretliyse plate dizilmez, parçalar orijinal duruşlarında ayrı STL olarak çıkar. Kapalı işlemin ayar
      kartı "işlem kapalı" diye kapanır; ana düğmenin adı da değişir (Hazırla / Plate'e diz / Hollow + delik).
    - **Boyut**: Orijinal / Hedef boy / Ölçek. Hedef boyda "Kaide dahil" ya da "Sadece figür". Altında basılacak
@@ -50,11 +68,15 @@ SLAPrep tek pencerede çalışır: açıkken kısayola klasör bırakırsanız y
      görünüm figürün sırtını gösteriyorsa buradan düzeltin), alt klasörler
      (işaretsiz klasör hazırlanmaz), alternatif parçalar (analizden sonra listelenir; desen de yazılabilir, ör.
      `*_Key`), "seçilmeyen alternatifleri de bas", "ölçek referansı / reklam parçalarını da bas".
-   - **Yazıcı ve plate**: hedef **En kısa süre** (varsayılan) ya da **En az plate**. SLA'da bir plate'in süresi en
+   - **Yazıcı ve plate**: **Yazıcı**nızı profil listesinden seçin — plate boyutu oradan gelir, sığmayan parça
+     sığacağı ölçekle bildirilir. Listede yoksa **Özel**'i seçip `218x123x230` yazın ve Kaydet'e basın; kaydedilir
+     ve listeye eklenir. Profil değerleri üretici verilerinden alınmıştır, uzun bir baskıdan önce dilimleyicinizdeki
+     değerle karşılaştırın. Sonra hedef: **En kısa süre** (varsayılan) ya da **En az plate**. SLA'da bir plate'in süresi en
      uzun parçasıyla belirlenir; "en kısa süre" uzun parçaları aynı plate'e toplar, kısa parçaları onların boşluğuna
      yerleştirir. Parça arası boşluk, klasörlere ayırma (Oto/Evet/Hayır) ve süre tahmini için CHITUBOX katman
      ayarlarınız.
-   - **Reçine**: 1 litre fiyatı, isterseniz "ayrı plate" reçinesinin (ör. şeffaf) ayrı fiyatı, şişe boyu, destek +
+   - **Reçine**: 1 litre fiyatı ve para birimi (listede yaygın olanlar var, istediğiniz kısaltmayı da
+     yazabilirsiniz), isterseniz "ayrı plate" reçinesinin (ör. şeffaf) ayrı fiyatı, şişe boyu, destek +
      kayıp payı (%15). Fiyatlar kitte değil bu bilgisayarda saklanır; değiştirince sonuçlar yeniden hazırlamadan
      güncellenir.
 4. **Parçalar** sekmesi:
@@ -125,8 +147,13 @@ Orijinal STL dosyalarınıza asla dokunulmaz.
 slaprep analyze "<klasör>"
 slaprep prep "<klasör>" --height 150 [--height-mode figure] [--wall 2] [--hole 3 | --hole-max 5] [--holes 4]
                        [--variant "*_Key"] [--exclude Base,lab] [--wall-mount] [--up-axis y] [--only Head,Hat]
+                       [--printer elegoo-saturn-4 | --build-volume 218x123x230] [--presupported]
 slaprep scan "<kök klasör>"      # tüm kitleri sadece bbox okuyarak sınıflandırır
 slaprep list                     # son çalıştırılan kitler
+slaprep printers                 # yazıcı profilleri: id, ad, plate boyutu
+slaprep printers --add "Benim yazıcım" 218x123x230     # kendi yazıcınızı kaydedin
+
+# her komut --lang tr|en alır (arayüz dili; varsayılan işletim sisteminizden gelir)
 
 # montaj düzeltmeleri (analyze ve prep; kite kaydedilir)
 slaprep analyze "<klasör>" --detach Arm_Right,Sword_1        # yanlış yere oturanları montaja alma

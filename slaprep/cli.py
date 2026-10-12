@@ -3,13 +3,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 import numpy as np
 from rich.console import Console
 
-from .config import PRINTERS, Settings, load_settings, out_dir, save_settings
+from .config import (CUSTOM_PRINTER, Settings, load_settings, out_dir, parse_build_volume, printer_name, printers,
+                     resolve_printer, save_settings)
 from .i18n import LANGS, set_lang, t
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -110,7 +112,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help=t("duvar yönü (otomatik bulunamazsa)"))
     p.add_argument("--tilt", help=t("eğim aralığı, ör. 30-45"))
     p.add_argument("--gap", type=float)
-    p.add_argument("--printer", choices=sorted(PRINTERS))
+    p.add_argument("--printer", metavar="ID",
+                   help=t("yazıcı id'si (liste: slaprep printers); plate boyutu profilden gelir"))
+    p.add_argument("--build-volume", metavar="XxYxZ",
+                   help=t("plate boyutunu doğrudan ver, ör. 218x123x230 (mm); profilde olmayan yazıcı için"))
     p.add_argument("--plates", type=int)
     pf = p.add_mutually_exclusive_group()
     pf.add_argument("--plates-by-folder", dest="plates_by_folder", action="store_true", default=None,
@@ -124,6 +129,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--layer-time", type=float, help=t("katman başına süre sn (pozlama + kaldırma; varsayılan 6.5)"))
     p.add_argument("--plate-overhead", dest="plate_overhead_min", type=float,
                    help=t("plate başına ek süre dk (alt katmanlar, hazırlık, temizlik; varsayılan 15)"))
+    ps = p.add_mutually_exclusive_group()
+    ps.add_argument("--presupported", dest="presupported", action="store_true", default=None,
+                    help=t("kit hazır desteklenmiş: hollow/delik yok, parçalar döndürülmez, sadece plate'e dizilir"))
+    ps.add_argument("--no-presupported", dest="presupported", action="store_false")
     p.add_argument("--steps", choices=["all", "plates", "hollow"],
                    help=t("all: hollow + delik + plate (varsayılan); plates: sadece yönlendir ve plate'e diz "
                           "(parçalar dolu); hollow: sadece hollow + delik (plate yok, parçalar orijinal duruşta)"))
@@ -134,6 +143,10 @@ def build_parser() -> argparse.ArgumentParser:
     _fix_args(p)
 
     sub.add_parser("list", help=t("son çalıştırılan kitlerin özeti"))
+
+    pr = sub.add_parser("printers", help=t("yazıcı profilleri: id, ad, plate boyutu"))
+    pr.add_argument("--add", nargs=2, metavar=("AD", "XxYxZ"),
+                    help=t("kendi yazıcını kaydet, ör. --add \"Elegoo Mars 5\" 153x77x165"))
 
     sc = sub.add_parser("scan",
                         help=t("klasör ağacındaki kitleri hafifçe tara ve montaj durumuna göre sınıflandır"))
@@ -153,7 +166,7 @@ def settings_from_args(kit: Path, args) -> Settings:
               "plates", "only",
               "exclude", "print_all_variants", "print_reference", "allow_visible_holes", "plates_by_folder", "wall_mount", "wall_side",
               "hole_on_bottom", "hole_on_wall", "plate_goal", "layer_height", "layer_time", "plate_overhead_min",
-              "steps"]
+              "steps", "presupported"]
     for k in simple:
         v = getattr(args, k, None)
         if v is not None:
@@ -178,8 +191,18 @@ def settings_from_args(kit: Path, args) -> Settings:
     if getattr(args, "join", None):
         s.asm_join = args.join
     if getattr(args, "printer", None):
-        s.printer = args.printer
-        s.build_volume = PRINTERS[args.printer]
+        pid = resolve_printer(args.printer)
+        if not pid:
+            raise SystemExit(t("Yazıcı tanınmadı: {id}. Listeyi görmek için: slaprep printers").format(
+                id=args.printer))
+        s.printer = pid
+        s.build_volume = printers()[pid]
+    if getattr(args, "build_volume", None):
+        try:
+            s.build_volume = parse_build_volume(args.build_volume)
+        except ValueError:
+            raise SystemExit(t("Plate boyutu XxYxZ biçiminde olmalı, ör. 218x123x230")) from None
+        s.printer = CUSTOM_PRINTER
     if getattr(args, "tilt", None):
         lo, hi = (float(x) for x in args.tilt.split("-"))
         s.tilt_min, s.tilt_max = lo, hi
@@ -278,6 +301,39 @@ def cmd_list(args):
     console.print(table)
 
 
+def cmd_printers(args):
+    from rich.table import Table
+
+    from .config import CUSTOM_KEY, add_custom_printer, custom_printers
+
+    if args.add:
+        name, vol = args.add
+        try:
+            volume = parse_build_volume(vol)
+        except ValueError:
+            raise SystemExit(t("Plate boyutu XxYxZ biçiminde olmalı, ör. 218x123x230")) from None
+        pid = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "custom-printer"
+        add_custom_printer(pid, name, volume)
+        console.print(t("Kaydedildi: {name} ({x}×{y}×{z} mm) — id: {id}").format(
+            name=name, x=f"{volume[0]:g}", y=f"{volume[1]:g}", z=f"{volume[2]:g}", id=pid))
+        console.print(t("Kullanmak için: slaprep prep \"<klasör>\" --printer {id}").format(id=pid))
+        return
+
+    mine = custom_printers()
+    table = Table(title=t("Yazıcı profilleri"))
+    for c in (t("id"), t("Yazıcı"), t("Plate X×Y×Z (mm)"), t("Kaynak")):
+        table.add_column(c, overflow="fold")
+    for pid, vol in printers().items():
+        src = t("sizin") if pid in mine else t("kütüphane")
+        table.add_row(pid, printer_name(pid), "×".join(f"{v:g}" for v in vol), src)
+    console.print(table)
+    console.print(t("Profilde olmayan yazıcı: slaprep printers --add \"Ad\" 218x123x230 "
+                    "(ya da tek seferlik --build-volume 218x123x230)"))
+    console.print(t("Plate boyutları üretici verilerinden alındı; uzun bir baskıdan önce dilimleyicinizdeki "
+                    "değerle karşılaştırın. Hata varsa GitHub'da bildirin: {key} anahtarı kendi profilinizi "
+                    "kaydeder.").format(key=CUSTOM_KEY))
+
+
 def cmd_scan(args):
     import time
 
@@ -343,7 +399,8 @@ def main(argv=None):
             break
     args = build_parser().parse_args(raw)
     try:
-        {"analyze": cmd_analyze, "prep": cmd_prep, "list": cmd_list, "scan": cmd_scan}[args.cmd](args)
+        {"analyze": cmd_analyze, "prep": cmd_prep, "list": cmd_list, "scan": cmd_scan,
+         "printers": cmd_printers}[args.cmd](args)
     except (LoadError, MemoryError) as e:
         msg = str(e) if isinstance(e, LoadError) else t("Bellek yetmedi.")
         console.print(f"[red]{t('HATA:')}[/red] {msg}")

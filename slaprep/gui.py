@@ -25,8 +25,9 @@ from . import batch as nq
 from . import prefs
 from .asmcheck import TAG_COLORS as ASM_TAG_COLORS
 from .asmcheck import checklist
-from .config import PRINTERS, Settings, load_settings, out_dir
-from .resin import ResinPrefs, load_prefs, resin_cell, resin_summary, save_prefs, summary_lines
+from .config import (CUSTOM_PRINTER, DEFAULT_PRINTER, Settings, add_custom_printer, load_settings, out_dir,
+                     parse_build_volume, printer_name, printers, resolve_printer)
+from .resin import CURRENCIES, ResinPrefs, load_prefs, resin_cell, resin_summary, save_prefs, summary_lines
 from .ui_theme import C, Card, ScrollFrame, Section, Segmented, TabView, Theme, ThinProgress, Tip, stat_tile
 
 APP_TITLE = "SLAPrep — SLA baskı hazırlığı"
@@ -174,7 +175,10 @@ class App:
         self.v_variant_pat = tk.StringVar(value="")
         self.v_all_variants = tk.BooleanVar(value=False)
         self.v_print_ref = tk.BooleanVar(value=False)
-        self.v_printer = tk.StringVar(value="m7")
+        # yazıcı: kullanıcının son seçimi bu bilgisayarda saklanır (kite değil; aynı yazıcıyla basıyor)
+        self.printer_id = resolve_printer(prefs.read("last_printer")) or DEFAULT_PRINTER
+        self.v_printer = tk.StringVar(value=printer_name(self.printer_id))
+        self.v_bv = tk.StringVar(value="")                 # "Özel…" seçilince plate boyutu: XxYxZ
         self.v_gap = tk.StringVar(value="3")
         self.v_by_folder = tk.StringVar(value="otomatik")
         self.v_plate_goal = tk.StringVar(value="En kısa toplam süre")
@@ -184,6 +188,7 @@ class App:
         self.v_steps = tk.StringVar(value="all")           # işlem onay kutularından türetilir
         self.v_op_hollow = tk.BooleanVar(value=True)
         self.v_op_plates = tk.BooleanVar(value=True)
+        self.v_presupported = tk.BooleanVar(value=False)   # hazır desteklenmiş kit: dokunulmaz, sadece dizilir
         # reçine fiyatları kullanıcıya ait (kite değil): ~/.slaprep_prefs.json
         rp = load_prefs()
         self.v_resin_price = tk.StringVar(value=f"{rp.price_l:g}" if rp.price_l else "")
@@ -400,8 +405,15 @@ class App:
                         command=self._on_ops).grid(row=2, column=0, columnspan=2, sticky="w", pady=(px(6), 0))
         ttk.Label(b, text="Baskı yönü seçilir; parçalar plate dosyalarına dizilir.",
                   style="Small.Card.TLabel").grid(row=3, column=0, columnspan=2, sticky="w", padx=(px(26), 0))
+        ttk.Checkbutton(b, text="Kit hazır desteklenmiş (pre-supported)", variable=self.v_presupported,
+                        style="Card.TCheckbutton", command=self._on_ops).grid(row=4, column=0, columnspan=2,
+                                                                              sticky="w", pady=(px(6), 0))
+        ttk.Label(b, text="Destekler dosyanın içinde: hollow ve delik yapılmaz, parçalar döndürülmez; "
+                          "sadece plate'e dizilir.",
+                  style="Small.Card.TLabel", wraplength=px(300), justify="left").grid(
+            row=5, column=0, columnspan=2, sticky="w", padx=(px(26), 0))
         self.l_ops_note = ttk.Label(b, text="", style="Small.Card.TLabel", wraplength=px(300), justify="left")
-        self.l_ops_note.grid(row=4, column=0, columnspan=2, sticky="w", pady=(px(6), 0))
+        self.l_ops_note.grid(row=6, column=0, columnspan=2, sticky="w", pady=(px(6), 0))
 
         # boyut
         s = self._section(parent, "Boyut", "ruler")
@@ -493,26 +505,40 @@ class App:
         # yazıcı ve plate
         s = self.sec_plates = self._section(parent, "Yazıcı ve plate", "printer", default_open=False)
         b = s.body
-        bv = PRINTERS["m7"]
-        self._label_row(b, 0, "Yazıcı", ttk.Combobox(b, textvariable=self.v_printer, values=sorted(PRINTERS),
-                                                      state="readonly", width=8),
-                        help=f"Anycubic Photon Mono M7: {bv[0]:.0f} × {bv[1]:.0f} × {bv[2]:.0f} mm")
-        self._label_row(b, 1, "Hedef", Segmented(b, self.v_plate_goal, [("En kısa toplam süre", "En kısa süre"),
-                                                                       ("En az plate", "En az plate")]),
+        self.printer_ids = {printer_name(pid): pid for pid in printers()}
+        self.custom_printer_label = "Özel (plate boyutunu gir)…"
+        self.cb_printer = ttk.Combobox(b, textvariable=self.v_printer, state="readonly", width=24,
+                                       values=sorted(self.printer_ids) + [self.custom_printer_label])
+        self._label_row(b, 0, "Yazıcı", self.cb_printer,
+                        help="Plate boyutu buradan gelir; parça sığmazsa uyarılır. Listede yok mu? 'Özel'i seçip "
+                             "X×Y×Z girin — kaydedilir ve listeye eklenir. Boyutlar üretici verilerinden alınmıştır, "
+                             "uzun bir baskıdan önce dilimleyicinizdekiyle karşılaştırın.")
+        self.cb_printer.bind("<<ComboboxSelected>>", lambda _e: self._on_printer())
+        pf = ttk.Frame(b, style="Bar.TFrame")
+        self.e_bv = ttk.Entry(pf, textvariable=self.v_bv, width=14, justify="right", state="readonly")
+        self.e_bv.pack(side="left")
+        self.b_bv = ttk.Button(pf, text="Kaydet", style="Small.TButton", command=self._save_custom_printer)
+        self.b_bv.pack(side="left", padx=(px(6), 0))
+        self._label_row(b, 1, "Plate X×Y×Z (mm)", pf,
+                        help="Seçili yazıcının plate boyutu. 'Özel' seçiliyse buraya 218x123x230 gibi yazıp "
+                             "Kaydet'e basın.")
+        self._on_printer(initial=True)
+        self._label_row(b, 2, "Hedef", Segmented(b, self.v_plate_goal, [("En kısa toplam süre", "En kısa süre"),
+                                                                        ("En az plate", "En az plate")]),
                         help="SLA'da plate süresi en yüksek parçaya bağlıdır. 'En kısa süre' uzun parçaları aynı "
                              "plate'e toplar ve puanı yakın daha alçak yönleri kullanır; fazladan plate ancak belirgin "
                              "süre kazandırırsa açılır.")
-        self._field(b, 2, "Parça arası boşluk", self.v_gap, "mm")
-        self._label_row(b, 3, "Klasörlere ayır", Segmented(b, self.v_by_folder, [("otomatik", "Oto"), ("evet", "Evet"),
+        self._field(b, 3, "Parça arası boşluk", self.v_gap, "mm")
+        self._label_row(b, 4, "Klasörlere ayır", Segmented(b, self.v_by_folder, [("otomatik", "Oto"), ("evet", "Evet"),
                                                                                  ("hayır", "Hayır")]),
                         help="'Oto': alt klasörlere ayırmak süreye ya da plate sayısına mal olmuyorsa ayrılır.")
-        self._subhead(b, 4, "Süre tahmini",
+        self._subhead(b, 5, "Süre tahmini",
                       help="CHITUBOX ayarlarınız: sadece süre tahmini ve yerleşim kararı için (dilimleme CHITUBOX'ta).")
-        self._field(b, 5, "Katman kalınlığı", self.v_layer_h, "mm")
-        self._field(b, 6, "Katman süresi", self.v_layer_t, "sn",
+        self._field(b, 6, "Katman kalınlığı", self.v_layer_h, "mm")
+        self._field(b, 7, "Katman süresi", self.v_layer_t, "sn",
                     help="Gerçek baskı sürelerini Plate'ler sekmesindeki 'Gerçek süre' satırına girerseniz bu değer "
                          "kendiliğinden ayarlanır.")
-        self._field(b, 7, "Plate başına ek", self.v_overhead, "dk")
+        self._field(b, 8, "Plate başına ek", self.v_overhead, "dk")
         for v in (self.v_layer_h, self.v_layer_t, self.v_overhead):
             v.trace_add("write", self._on_time_change)
 
@@ -521,7 +547,8 @@ class App:
         b = s.body
         f = ttk.Frame(b, style="Bar.TFrame")
         ttk.Entry(f, textvariable=self.v_resin_price, width=7, justify="right").pack(side="left")
-        ttk.Entry(f, textvariable=self.v_resin_cur, width=4).pack(side="left", padx=(px(6), 0))
+        ttk.Combobox(f, textvariable=self.v_resin_cur, values=list(CURRENCIES), width=5).pack(side="left",
+                                                                                              padx=(px(6), 0))
         self._label_row(b, 0, "1 litre fiyatı", f, help="Boş bırakılırsa yalnız ml gösterilir. Fiyatlar bu bilgisayarda "
                                                          "saklanır, her kitte geçerlidir.")
         self._field(b, 1, "Ayrı plate reçinesi (1 L)", self.v_resin_sep_price, "",
@@ -534,22 +561,63 @@ class App:
                   self.v_resin_cur):
             v.trace_add("write", self._on_resin_change)
 
+    # ------------------------------------------------------------------ yazıcı seçimi
+    def _on_printer(self, initial: bool = False):
+        """Listeden yazıcı seçildi: plate boyutu alanını güncelle. 'Özel' seçiliyse alan yazılabilir olur."""
+        if self.v_printer.get() == self.custom_printer_label:
+            self.printer_id = CUSTOM_PRINTER
+            self.e_bv.configure(state="normal")
+            self.b_bv.configure(state="normal")
+            if not self.v_bv.get():
+                self.v_bv.set("218x123x230")
+            return
+        pid = self.printer_ids.get(self.v_printer.get())
+        if not pid:                                        # ad tanınmadı (silinmiş özel yazıcı): varsayılana dön
+            pid = DEFAULT_PRINTER
+            self.v_printer.set(printer_name(pid))
+        self.printer_id = pid
+        x, y, z = printers()[pid]
+        self.v_bv.set(f"{x:g}x{y:g}x{z:g}")
+        self.e_bv.configure(state="readonly")
+        self.b_bv.configure(state="disabled")
+        if not initial:
+            self._save_pref("last_printer", pid)
+
+    def _save_custom_printer(self):
+        """'Özel' plate boyutunu kalıcı bir yazıcı profili olarak kaydet ve listeye ekle."""
+        try:
+            volume = parse_build_volume(self.v_bv.get())
+        except ValueError:
+            self.v_status.set("Plate boyutu XxYxZ biçiminde olmalı, ör. 218x123x230.")
+            return
+        name = f"{volume[0]:g}×{volume[1]:g}×{volume[2]:g} mm"
+        pid = "custom-" + "-".join(f"{v:g}" for v in volume)
+        add_custom_printer(pid, name, volume)
+        self.printer_ids = {printer_name(p): p for p in printers()}
+        self.cb_printer.configure(values=sorted(self.printer_ids) + [self.custom_printer_label])
+        self.v_printer.set(name)
+        self._on_printer()
+        self.v_status.set(f"Yazıcı kaydedildi: {name}")
+
     def _on_ops(self):
         """İşlem onay kutuları → hazırlık adımı (all / hollow / plates); ilgisiz ayar kartları kapanır, ana düğmenin
         adı değişir. İkisi de kapalıysa hazırlanacak bir şey yoktur."""
-        h, p = self.v_op_hollow.get(), self.v_op_plates.get()
+        pre = self.v_presupported.get()
+        h = self.v_op_hollow.get() and not pre          # hazır desteklenmiş kitte hollow yapılmaz
+        p = self.v_op_plates.get()
         st = "all" if h and p else "hollow" if h else "plates" if p else ""
         self.v_steps.set(st)
-        self.sec_hollow.set_enabled(h, "işlem kapalı")
+        self.sec_hollow.set_enabled(h, "hazır desteklenmiş kit" if pre else "işlem kapalı")
         self.sec_plates.set_enabled(p, "işlem kapalı")
         self.b_prep.configure(text=STEPS_BUTTON.get(st, "Hazırla"))
         self.l_ops_note.configure(
             text="En az bir işlem seçin." if not st else
+            "Parçalar olduğu gibi (dolu, dönmeden) plate'e dizilir." if pre and st == "plates" else
             "Parçalar dolu kalır; sadece yönlendirilip plate'e dizilir." if st == "plates" else
             "Plate dizilmez: parçalar orijinal duruşlarında ayrı STL olarak çıkar (Klasörler → Parça dosyaları)."
             if st == "hollow" else "",
             style="Bad.Card.TLabel" if not st else "Small.Card.TLabel")
-        (self.l_ops_note.grid if st != "all" else self.l_ops_note.grid_remove)()
+        (self.l_ops_note.grid if st != "all" or pre else self.l_ops_note.grid_remove)()
         self._update_buttons()
 
     _on_steps = _on_ops
@@ -1314,7 +1382,19 @@ class App:
         self.v_print_ref.set(bool(s.print_reference))
         self.fix_detach = list(s.asm_detach or [])
         self.fix_join = [list(j) for j in (s.asm_join or [])]
-        self.v_printer.set(s.printer)
+        # kitte kayıtlı yazıcı: tanınıyorsa seç; tanınmıyorsa (başka bilgisayarda hazırlanmış kit) plate boyutunu
+        # "Özel" olarak göster — kullanıcının kendi yazıcısı sessizce değişmesin
+        pid = resolve_printer(s.printer)
+        if pid:
+            self.printer_id = pid
+            self.v_printer.set(printer_name(pid))
+            self._on_printer(initial=True)
+        else:
+            x, y, z = s.build_volume
+            self.v_printer.set(self.custom_printer_label)
+            self.v_bv.set(f"{x:g}x{y:g}x{z:g}")
+            self._on_printer(initial=True)
+            self.v_bv.set(f"{x:g}x{y:g}x{z:g}")
         self.v_gap.set(f"{s.gap:g}")
         self.v_by_folder.set({None: "otomatik", True: "evet", False: "hayır"}[s.plates_by_folder])
         self.v_plate_goal.set(next((k for k, v in GOALS.items() if v == s.plate_goal), "En kısa toplam süre"))
@@ -1323,7 +1403,8 @@ class App:
         self.v_overhead.set(f"{s.plate_overhead_min:g}")
         self._apply_calibration()               # gerçek süre ölçümleri varsa katman süresi onlardan
         steps = s.steps if s.steps in STEPS else "all"
-        self.v_op_hollow.set(steps in ("all", "hollow"))
+        self.v_presupported.set(bool(getattr(s, "presupported", False)))
+        self.v_op_hollow.set(steps in ("all", "hollow") or self.v_presupported.get())
         self.v_op_plates.set(steps in ("all", "plates"))
         self._on_ops()
         self._on_scale_mode()
@@ -1963,6 +2044,7 @@ class App:
         if not self.v_steps.get():
             raise ValueError("En az bir işlem seçin (İşlemler kartı).")
         args += ["--steps", self.v_steps.get()]
+        args += ["--presupported" if self.v_presupported.get() else "--no-presupported"]
         # parça başına tercihler (form --reset ile gittiği için her seferinde açıkça)
         for opt, names in (("--solid", [n for n, i in self.parts_info.items() if i.get("fill") == "solid"]),
                            ("--hollow", [n for n, i in self.parts_info.items() if i.get("fill") == "hollow"]),
@@ -2002,7 +2084,15 @@ class App:
             args += ["--print-all-variants"]
         if self.v_print_ref.get():
             args += ["--print-reference"]
-        args += ["--printer", self.v_printer.get(), "--gap", f"{_num(self.v_gap.get(), 3.0):g}"]
+        if self.printer_id == CUSTOM_PRINTER:
+            try:
+                vol = parse_build_volume(self.v_bv.get())
+            except ValueError:
+                raise ValueError("Plate boyutu XxYxZ biçiminde olmalı, ör. 218x123x230.") from None
+            args += ["--build-volume", "x".join(f"{v:g}" for v in vol)]
+        else:
+            args += ["--printer", self.printer_id]
+        args += ["--gap", f"{_num(self.v_gap.get(), 3.0):g}"]
         args += ["--plate-goal", GOALS.get(self.v_plate_goal.get(), "time"),
                  "--layer-height", f"{_num(self.v_layer_h.get(), 0.05) or 0.05:g}",
                  "--layer-time", f"{_num(self.v_layer_t.get(), 6.5) or 6.5:g}",

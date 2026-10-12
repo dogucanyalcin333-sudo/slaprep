@@ -1,0 +1,34 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    # Windows: SLAPrep Windows + CHITUBOX için yazıldı, testler de orada koşmalı
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # GUI testleri pencereyi görünmeden (withdraw) kurar; Windows koşucusunda Tk vardır.
+      # Yerel kit gerektiren testler "rango" işaretiyle hariç tutulur.
+      - name: Tests
+        run: python -m pytest tests -m "not rango" -q
+
+      - name: Demo kit builds and prepares
+        run: |
+          python tools/make_demo_kit.py demo-kit
+          python -m slaprep prep demo-kit --height 90 --printer elegoo-mars-5 --no-open

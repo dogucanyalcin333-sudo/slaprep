@@ -7,13 +7,35 @@ hazır (hollow + delikli) parça hacimlerinden yapılır; destek ve kayıp için
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, dataclass, field, fields
 
 from . import prefs
 from .config import SEPARATE_GROUP
 from .i18n import t
 
 SEPARATE_PREFIX = SEPARATE_GROUP + "/"     # plate etiketi: "ayrı/plate_01"
+
+# Açılır listede önerilen para birimleri (kullanıcı kendi kısaltmasını da yazabilir)
+CURRENCIES = ("USD", "EUR", "GBP", "TL", "CAD", "AUD", "JPY", "CNY", "INR", "BRL", "MXN", "PLN", "SEK", "CHF")
+# Dil → varsayılan para birimi (bölgesi bilinmeyen diller için USD)
+_LANG_CURRENCY = {"tr": "TL", "en": "USD"}
+
+
+def default_currency() -> str:
+    """İşletim sistemi bölgesinden para birimi; bulunamazsa arayüz dilinden, o da yoksa USD."""
+    from .i18n import system_locale
+
+    code = system_locale().upper().replace("-", "_")
+    by_region = {"TR": "TL", "US": "USD", "GB": "GBP", "CA": "CAD", "AU": "AUD", "JP": "JPY", "CN": "CNY",
+                 "IN": "INR", "BR": "BRL", "MX": "MXN", "PL": "PLN", "SE": "SEK", "CH": "CHF",
+                 "DE": "EUR", "FR": "EUR", "ES": "EUR", "IT": "EUR", "NL": "EUR", "PT": "EUR", "IE": "EUR",
+                 "AT": "EUR", "BE": "EUR", "FI": "EUR", "GR": "EUR"}
+    region = code.split("_")[-1] if "_" in code else ""
+    if region in by_region:
+        return by_region[region]
+    from .i18n import lang
+
+    return _LANG_CURRENCY.get(lang(), "USD")
 
 
 @dataclass
@@ -22,7 +44,7 @@ class ResinPrefs:
     bottle_ml: float = 1000.0
     extra_pct: float = 15.0          # destek + kayıp payı (CHITUBOX'ta destek eklendikten sonra hacmi oradan okuyun)
     separate_price_l: float = 0.0    # "ayrı plate" reçinesinin litre fiyatı; 0 = ana reçineyle aynı
-    currency: str = "TL"
+    currency: str = field(default_factory=default_currency)
 
 
 def load_prefs() -> ResinPrefs:

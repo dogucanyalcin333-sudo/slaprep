@@ -2,6 +2,8 @@
 
 # SLAPrep — automatic print preparation for split resin figures
 
+[![tests](https://github.com/dogucanyalcin333-sudo/slaprep/actions/workflows/tests.yml/badge.svg)](https://github.com/dogucanyalcin333-sudo/slaprep/actions/workflows/tests.yml)
+
 SLAPrep takes a split figure kit (a folder of STL parts) and gets it ready for CHITUBOX: it solves how the
 parts fit together, scales the kit, hollows the parts, drills drain holes **only into mating faces**, orients
 every part and nests them onto build plates.
@@ -14,7 +16,22 @@ The bottom of the base — and the back face in wall-mount mode — is also hidd
 an outer surface: a hole there stays open. That is why no holes are drilled there by default. You can turn them
 on in the *Hollow / holes* card (`--holes-on-bottom`, `--holes-on-wall-back`).
 
-Written for Windows + CHITUBOX; needs Python 3.11 or newer.
+Written for Windows; needs Python 3.11 or newer. The plates it writes are plain STL files, so any resin slicer
+opens them — CHITUBOX, Lychee, Photon Workshop, Halot Box. Only the print-time estimate assumes your slicer's
+layer settings, which you enter once.
+
+## Try it in two minutes
+
+No kit at hand? Generate a small split figure (made from primitives, no model files involved) and prepare it:
+
+```
+python tools/make_demo_kit.py demo-kit
+slaprep prep demo-kit --height 90 --printer elegoo-mars-5
+```
+
+The demo kit has a base, a torso, two arms, two alternative heads (`Head_v1` / `Head_v2`) and a scale-reference
+pillar, with real pin/socket joints — enough to see assembly solving, variant selection, hollowing, drain holes
+on mating faces and plate nesting in one run.
 
 > **Language note:** the application's interface, reports and command-line messages are currently **Turkish
 > only**. An English interface is in progress. This README describes every feature in English, and the CLI flags
@@ -45,7 +62,10 @@ window you already have instead of opening a second one.
 3. Pick your settings in the cards on the left (clicking a card's title folds it; the ones you leave open are
    remembered):
    - **Operations**: two checkboxes — **Hollow + holes** (parts are hollowed, holes go into mating faces only)
-     and **Orient + nest on plates**. Both on = full preparation. With only nesting on, parts stay solid; with
+     and **Orient + nest on plates**. Both on = full preparation. A third checkbox, **pre-supported kit**, is for
+     files that already come with supports: they are left exactly as they are — not hollowed, not drilled, not
+     rotated — and only nested onto plates, because hollowing would open the support roots and reorienting would
+     point the supports the wrong way. With only nesting on, parts stay solid; with
      only hollowing on, nothing is nested and each part is written out as its own STL in its original pose. The
      card of a disabled operation folds itself away, and the main button is renamed accordingly (Prepare / Nest
      on plates / Hollow + holes).
@@ -61,13 +81,18 @@ window you already have instead of opening a second one.
      "Front" view in Assembly check shows the figure's back, correct it here), subfolders (an unchecked folder
      is not prepared) and alternative parts (listed after the analysis; patterns work too, e.g. `*_Key`), plus
      "also print unselected alternatives" and "also print scale-reference / advertisement parts".
-   - **Printer and plates**: optimise for **shortest time** (default) or **fewest plates**. On a resin printer a
+   - **Printer and plates**: pick your **printer** from the profile list — the plate size comes from it, and a
+     part that will not fit is reported with the scale that would. Not in the list? Choose **Custom**, type
+     `218x123x230` and press Save: it is remembered and joins the list. Profile values come from manufacturer
+     specifications, so check them against your slicer before a long print. Then: optimise for **shortest time**
+     (default) or **fewest plates**. On a resin printer a
      plate takes as long as its tallest part, so "shortest time" groups the tall parts onto the same plate and
      fills the space around them with short ones. Also: spacing between parts, splitting by folder (Auto/Yes/No)
      and your CHITUBOX layer settings, used for the time estimate.
-   - **Resin**: price per litre, optionally a second price for the "separate plate" resin (clear, for example),
-     bottle size and the support + waste margin (15%). Prices are stored on this computer, not in the kit, and
-     changing them updates the results without re-running the preparation.
+   - **Resin**: price per litre and your currency (the list has the common ones and you can type any code),
+     optionally a second price for the "separate plate" resin (clear, for example), bottle size and the support +
+     waste margin (15%). Prices are stored on this computer, not in the kit, and changing them updates the
+     results without re-running the preparation.
 4. The **Parts** tab:
    - The box at the start of a row **includes or excludes** the part. The box in the **Separate plate** column
      nests that part onto plates of its own (`plates\ayrı\plate_01.stl`), which is what you want for a different
@@ -148,8 +173,13 @@ Your original STL files are never touched.
 slaprep analyze "<folder>"
 slaprep prep "<folder>" --height 150 [--height-mode figure] [--wall 2] [--hole 3 | --hole-max 5] [--holes 4]
                        [--variant "*_Key"] [--exclude Base,lab] [--wall-mount] [--up-axis y] [--only Head,Hat]
+                       [--printer elegoo-saturn-4 | --build-volume 218x123x230] [--presupported]
 slaprep scan "<root folder>"     # classifies every kit underneath, reading bounding boxes only
 slaprep list                     # recently run kits
+slaprep printers                 # printer profiles: id, name, plate size
+slaprep printers --add "My printer" 218x123x230     # save your own
+
+# every command takes --lang tr|en (the interface language; the default follows your system)
 
 # assembly corrections (for analyze and prep; saved into the kit)
 slaprep analyze "<folder>" --detach Arm_Right,Sword_1        # keep wrongly placed parts out of the assembly
