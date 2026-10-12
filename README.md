@@ -1,180 +1,212 @@
-# SLAPrep — SLA baskı öncesi otomatik hazırlık
+*[Türkçe](README.tr.md)*
 
-Bölünmüş figür kitlerini (STL) CHITUBOX'a hazır hale getirir: montajı çözer, ölçekler, hollow eder, drenaj
-deliklerini **sadece birleşme yüzeylerine** açar, parçaları yönlendirir ve plate'lere dizer.
-Birleşme yüzeyleri, parçalar birleştirilince komşu parçayla kapanır; baskıdan sonra delik tıkamak gerekmez.
-CHITUBOX'ta size sadece destek ekleyip slice etmek kalır.
+# SLAPrep — automatic print preparation for split resin figures
 
-Kaidenin alt yüzü ve duvar modunda arka yüz de montajdan sonra görünmez, ama bunlar dış yüzeydir; delik açılırsa
-açık kalır. Bu yüzden varsayılan olarak buralara delik açılmaz. İsterseniz *Hollow / delik* sekmesinden
-açabilirsiniz (`--holes-on-bottom`, `--holes-on-wall-back`).
+SLAPrep takes a split figure kit (a folder of STL parts) and gets it ready for CHITUBOX: it solves how the
+parts fit together, scales the kit, hollows the parts, drills drain holes **only into mating faces**, orients
+every part and nests them onto build plates.
 
-Windows + CHITUBOX için yazılmıştır, Python 3.11+ gerekir.
+Mating faces are the surfaces that end up covered by the neighbouring part once the figure is assembled, so the
+drain holes disappear when you glue the kit together — no plugging or filling after the print. All that is left
+to do in CHITUBOX is adding supports and slicing.
 
-## Kurulum
+The bottom of the base — and the back face in wall-mount mode — is also hidden after assembly, but it is still
+an outer surface: a hole there stays open. That is why no holes are drilled there by default. You can turn them
+on in the *Hollow / holes* card (`--holes-on-bottom`, `--holes-on-wall-back`).
 
-Depoyu indirin (GitHub'da **Code → Download ZIP**, ya da `git clone`), sonra `install.bat` dosyasına
-çift tıklayın. Sanal ortam kurulur ve masaüstüne **SLAPrep** kısayolu eklenir.
-Klasörü taşırsanız `install.bat`'ı tekrar çalıştırın.
+Written for Windows + CHITUBOX; needs Python 3.11 or newer.
+
+> **Language note:** the application's interface, reports and command-line messages are currently **Turkish
+> only**. An English interface is in progress. This README describes every feature in English, and the CLI flags
+> and output file names are already English.
+
+## Installation
+
+Download the repository (**Code → Download ZIP** on GitHub, or `git clone`), then double-click `install.bat`.
+It creates a virtual environment, installs the package and puts an **SLAPrep** shortcut on your desktop.
+Run `install.bat` again if you move the folder.
 
 ```
-git clone https://github.com/<kullanıcı>/slaprep.git
+git clone https://github.com/<user>/slaprep.git
 cd slaprep
 install.bat
 ```
 
-## Kullanım (pencere)
+## Using the window
 
-Pencere dört bölümdür: üstte **kit seçimi** (klasör, Gözat, Rapor, Klasörler), solda **ayar kartları**, sağda
-**sekmeler** (Parçalar, Plate'ler, Özet, Montaj kontrolü, Kuyruk), altta **işlem çubuğu** (Analiz et, Hazırla,
-Durdur, Kuyruğa ekle, Düşük öncelik, Günlük). Ayarların yanındaki ⓘ işaretinin üzerine gelince açıklaması görünür.
-SLAPrep tek pencerede çalışır: açıkken kısayola klasör bırakırsanız yeni pencere açılmaz, kit açık pencerede açılır.
+The window has four regions: the **kit bar** at the top (folder, Browse, Report, Folders), **setting cards** on
+the left, **tabs** on the right (Parts, Plates, Summary, Assembly check, Queue) and the **action bar** at the
+bottom (Analyse, Prepare, Stop, Add to queue, Low priority, Log). Hovering the ⓘ next to a setting shows what it
+does. SLAPrep runs as a single window: dropping a folder on the shortcut while it is open loads the kit in the
+window you already have instead of opening a second one.
 
-1. Masaüstündeki **SLAPrep** kısayolunu açın. Kit klasörünü pencereye ya da kısayolun üstüne sürükleyip bırakın
-   (ya da üstteki **Gözat…**).
-2. **Analiz et**: montaj, yükseklik, alternatif parçalar (V1/V2, birleşik/bölünmüş) ve gizli yüzeyler bulunur.
-3. Sol kenardaki kartlardan ayarları seçin (kart başlığına tıklayınca açılır/kapanır; açık kalanlar hatırlanır):
-   - **İşlemler**: iki onay kutusu. **Hollow + delik** (içi boşaltılır, delikler sadece birleşme yüzeylerine) ve
-     **Yönlendir + plate'e diz**. İkisi açık = tam hazırlık. Sadece plate işaretliyse parçalar dolu kalır; sadece
-     hollow işaretliyse plate dizilmez, parçalar orijinal duruşlarında ayrı STL olarak çıkar. Kapalı işlemin ayar
-     kartı "işlem kapalı" diye kapanır; ana düğmenin adı da değişir (Hazırla / Plate'e diz / Hollow + delik).
-   - **Boyut**: Orijinal / Hedef boy / Ölçek. Hedef boyda "Kaide dahil" ya da "Sadece figür". Altında basılacak
-     boy yazar. Montaj bulunamazsa ürün sayfasındaki orijinal boyu girin.
-   - **Hollow ve delik**: duvar kalınlığı, delik çapı (Otomatik: kavite büyüdükçe 3 → en büyük çap; Sabit), kavite
-     başına en az delik. *Ek delik yerleri* (kaide altı, duvar arkası, görünür yüzey) dış yüzeye delik açar ve
-     baskıdan sonra tıkanmalıdır; varsayılan olarak kapalıdır.
-   - **Montaj**: *Duvara asılacak* anahtarı (arka yüzler delik için kullanılır), yukarı ekseni, **ön yönü**
-     (destekler birleşme yerlerine, sonra figürün sırtına ve altına yönlendirilir; Montaj kontrolündeki "Önden"
-     görünüm figürün sırtını gösteriyorsa buradan düzeltin), alt klasörler
-     (işaretsiz klasör hazırlanmaz), alternatif parçalar (analizden sonra listelenir; desen de yazılabilir, ör.
-     `*_Key`), "seçilmeyen alternatifleri de bas", "ölçek referansı / reklam parçalarını da bas".
-   - **Yazıcı ve plate**: hedef **En kısa süre** (varsayılan) ya da **En az plate**. SLA'da bir plate'in süresi en
-     uzun parçasıyla belirlenir; "en kısa süre" uzun parçaları aynı plate'e toplar, kısa parçaları onların boşluğuna
-     yerleştirir. Parça arası boşluk, klasörlere ayırma (Oto/Evet/Hayır) ve süre tahmini için CHITUBOX katman
-     ayarlarınız.
-   - **Reçine**: 1 litre fiyatı, isterseniz "ayrı plate" reçinesinin (ör. şeffaf) ayrı fiyatı, şişe boyu, destek +
-     kayıp payı (%15). Fiyatlar kitte değil bu bilgisayarda saklanır; değiştirince sonuçlar yeniden hazırlamadan
-     güncellenir.
-4. **Parçalar** sekmesi:
-   - Satırın başındaki kutu: parçayı **dahil et / hariç tut**. **Ayrı plate** sütunundaki kutu: parça diğerleriyle
-     karışmadan kendi plate'lerine dizilir (`plates\ayrı\plate_01.stl`; farklı reçine için). **Doluluk** hücresine
-     tıklayınca *Otomatik / Dolu / Hollow* seçilir (Dolu: araç hollow edebilecek olsa da dolu basılır, ör. şeffaf
-     reçine; Hollow: hacim eşiğinin altında kalsa da hollow edilir).
-   - Birden çok parçayı (Ctrl/Shift) seçince üstteki **seçim çubuğundan** hepsinin doluluk, ayrı plate ve dahil
-     ayarı birlikte değişir; karışık durum ara işaretle gösterilir. Sağ tık menüsü de aynı işleri yapar.
-   - **Parça ara** kutusu listeyi süzer. Analizden/hazırlıktan sonra hacim, sonuç (Hollow/Dolu/Basılmaz), delikler,
-     hazır reçine miktarı ve plate sütunları dolar. Tercihler hazırlıkta kite kaydedilir.
-5. **Montaj kontrolü** sekmesi: montajın önden/yandan görüntüsü (**Önden / Yandan / Boy / Fotoğraf**) ve her
-   parçanın nasıl yerleştiği. Yeşil = güvenilir, turuncu = kontrol edin, kırmızı = yerleşmedi. Sekme adındaki sayı
-   kontrol edilecek parça sayısıdır. Bir parça yanlış yerdeyse listeden seçip:
-   - **Montajdan ayır** (montaja ve boya katılmaz, yine basılır), ya da
-   - doğru komşusunu (çapa) açılır listeden seçip **Bağla** (aynı komşuya bağlanan parçalar — iki el gibi —
-     birlikte, çakışmadan yerleşir); yanlış yere oturduysa **Başka konum dene**,
-   - sonra **Montajı yeniden çöz**. Düzeltmeler kite kaydedilir.
-   - Kaide ve figür klasörleri ayrı koordinatlarda geldiyse figür kaidenin yanında durur: figürün ayak parçasını
-     seçip çapa olarak kaide parçasını seçin, **Bağla** — figür bütün olarak kaidenin üstüne oturur.
-   - **Fotoğraf**: montajın 8 açıdan gri görüntüsü stüdyo fotoğrafıyla yan yana; açı ve fotoğraf okları,
-     **Fotoğraf ekle…** (ya da fotoğrafı pencereye bırakın; kopyası `_slaprep\photos` altına alınır). Kitle gelen
-     render'lar kendiliğinden listelenir. **Boy**: gerçek orantılı görünüm ve Boyut ayarına göre canlı cetvel.
-   - Ölçek referans parçaları (ör. `HEIGHT_PILLAR`) ve indirme sitelerinin **reklam/filigran STL'leri** geometriden
-     tanınır: basılmaz, boya katılmaz, raporda listelenir (basmak için Montaj kartındaki kutu / `--print-reference`).
-   - Parçalar arasındaki 0.4–1.2 mm montaj boşluğu temas sayılır. Su geçirmez olmayan parça otomatik onarılır
-     (minik delikler ve "kanat" üçgenler kayıpsız kapatılır); onarım şekli bozacaksa yapılmaz, parça orijinal
-     hâliyle **dolu** basılır ve raporda nedeni yazar.
-6. **Hazırla** (işlemlere göre adı "Plate'e diz" ya da "Hollow + delik" olur). Bitince:
-   - **Özet**: basılacak parça, yükseklik, plate · süre ve reçine kartları; altında montaj bilgisi ve uyarılar.
-   - **Plate'ler**: plate sayısı, toplam süre, reçine ve hedef kartları; plate başına parçalar, en yüksek parça,
-     süre, reçine (ml · maliyet). Bir plate'e çift tıklarsanız STL varsayılan programla (CHITUBOX) açılır.
-     **Gerçek süre**: bir plate'i bastıktan sonra yazıcının gösterdiği süreyi girin (ör. `3:31`); süre tahmini buna
-     göre ayarlanır (tek ölçümde katman süresi, yükseklikleri farklı birkaç ölçümde plate başına ek süre de). Ölçümler
-     bu bilgisayarda saklanır, tüm kitlerde ve komut satırında geçerlidir.
-   - **Parçalar** tablosundaki **Destek** sütunu: destek gelecek alanın ne kadarının birleşme yeri, sırt ya da alt
-     tarafta kaldığı. Yönlendirme, desteklerin önce birleşme yerlerine, sonra sırt ve alt kısma gelmesini; ön ve
-     yanların temiz kalmasını tercih eder (raporda her parça için "destek: gizli % · arka/alt % · ön/yan %").
-   - Üstteki **Rapor** görselli raporu, **Klasörler** plate / parça dosyalarını ve çıktı klasörünü açar.
-7. Alt çubuktaki **Düşük öncelik** anahtarı işlemi düşük işlemci önceliğiyle çalıştırır (bilgisayar kullanılabilir
-   kalır). **Günlük** çalışma çıktısını açar (hata olursa kendiliğinden açılır).
-8. **Gece kuyruğu** (Kuyruk sekmesi): her kiti açıp ayarlarını yaptıktan sonra alttaki **Kuyruğa ekle**; sonra
-   Kuyruk sekmesinde **Hepsini hazırla**. Kitler o anki ayarlarıyla sırayla hazırlanır; sabah her kitin sonucu
-   (plate, süre, reçine, sorunlar) tek listede, satıra çift tıklayınca kit açılır. Kuyruk uygulama kapansa da
-   saklanır; yarım kalan kit bir sonraki başlatmada baştan hazırlanır. Bir kit tek başına hazırlanırken de
-   **Hepsini hazırla**'ya basabilirsiniz: kuyruk o iş bitince başlar; biten iş kuyrukta aynı ayarlarla bekliyorsa
-   ikinci kez hazırlanmaz.
+1. Open the **SLAPrep** shortcut. Drag the kit folder onto the window or onto the shortcut (or use **Browse…**).
+2. **Analyse**: finds the assembly, the height, alternative parts (V1/V2, merged/split) and the hidden surfaces.
+3. Pick your settings in the cards on the left (clicking a card's title folds it; the ones you leave open are
+   remembered):
+   - **Operations**: two checkboxes — **Hollow + holes** (parts are hollowed, holes go into mating faces only)
+     and **Orient + nest on plates**. Both on = full preparation. With only nesting on, parts stay solid; with
+     only hollowing on, nothing is nested and each part is written out as its own STL in its original pose. The
+     card of a disabled operation folds itself away, and the main button is renamed accordingly (Prepare / Nest
+     on plates / Hollow + holes).
+   - **Size**: Original / Target height / Scale. For a target height, choose "including base" or "figure only".
+     The height that will actually be printed is shown underneath. If no assembly could be found, enter the
+     original height from the product page.
+   - **Hollow and holes**: wall thickness, hole diameter (Automatic: 3 mm up to the largest diameter as the
+     cavity grows; or Fixed) and the minimum number of holes per cavity. *Extra hole locations* (base bottom,
+     wall back, visible surface) drill into outer surfaces and have to be plugged after the print, so they are
+     off by default.
+   - **Assembly**: the *wall-mounted* switch (back faces become usable for holes), the up axis, the **front
+     direction** (supports are steered to mating faces first, then to the figure's back and underside; if the
+     "Front" view in Assembly check shows the figure's back, correct it here), subfolders (an unchecked folder
+     is not prepared) and alternative parts (listed after the analysis; patterns work too, e.g. `*_Key`), plus
+     "also print unselected alternatives" and "also print scale-reference / advertisement parts".
+   - **Printer and plates**: optimise for **shortest time** (default) or **fewest plates**. On a resin printer a
+     plate takes as long as its tallest part, so "shortest time" groups the tall parts onto the same plate and
+     fills the space around them with short ones. Also: spacing between parts, splitting by folder (Auto/Yes/No)
+     and your CHITUBOX layer settings, used for the time estimate.
+   - **Resin**: price per litre, optionally a second price for the "separate plate" resin (clear, for example),
+     bottle size and the support + waste margin (15%). Prices are stored on this computer, not in the kit, and
+     changing them updates the results without re-running the preparation.
+4. The **Parts** tab:
+   - The box at the start of a row **includes or excludes** the part. The box in the **Separate plate** column
+     nests that part onto plates of its own (`plates\ayrı\plate_01.stl`), which is what you want for a different
+     resin. Clicking the **Fill** cell cycles *Automatic / Solid / Hollow* (Solid: printed solid even if the tool
+     could hollow it — clear resin, for instance; Hollow: hollowed even if it is below the volume threshold).
+   - Select several parts (Ctrl/Shift) and the **selection bar** above the table changes fill, separate-plate and
+     include for all of them at once; a mixed state is shown with an intermediate mark. The right-click menu does
+     the same things.
+   - The **Find part** box filters the list. After an analysis or preparation the volume, result (Hollow / Solid /
+     Not printed), holes, prepared resin volume and plate columns fill in. Your choices are saved into the kit
+     when you prepare it.
+5. The **Assembly check** tab: front and side views of the assembly (**Front / Side / Height / Photo**) and how
+   each part was placed. Green = reliable, orange = check it, red = not placed. The number in the tab title is
+   how many parts need checking. If a part sits in the wrong place, select it in the list and either:
+   - **Detach from assembly** (it is left out of the assembly and the height, but still printed), or
+   - pick its correct neighbour (the anchor) from the dropdown and press **Join** (parts joined to the same
+     neighbour — two hands, say — are placed together without colliding); if it lands wrong, use **Try another
+     position**,
+   - then press **Re-solve assembly**. Your corrections are saved into the kit.
+   - If the base and the figure were exported in separate coordinate systems, the figure ends up standing next to
+     the base: select the figure's foot part, choose the base part as its anchor and press **Join** — the whole
+     figure then sits on top of the base.
+   - **Photo**: grey renders of the assembly from 8 angles, side by side with a studio photo; use the angle and
+     photo arrows and **Add photo…** (or drop a photo on the window; a copy is kept under `_slaprep\photos`).
+     Renders that came with the kit are listed automatically. **Height**: a true-proportion view with a live
+     ruler that follows the Size setting.
+   - Scale-reference parts (e.g. `HEIGHT_PILLAR`) and the **advertisement / watermark STLs** that download sites
+     add are recognised from their geometry: they are not printed, not counted in the height, and listed in the
+     report (to print them anyway, use the checkbox in the Assembly card or `--print-reference`).
+   - A 0.4–1.2 mm assembly gap between parts still counts as contact. A part that is not watertight is repaired
+     automatically (tiny holes and "flap" triangles are closed losslessly); if the repair would distort the
+     shape, it is skipped and the part is printed **solid** in its original form, with the reason in the report.
+6. **Prepare** (named "Nest on plates" or "Hollow + holes" depending on the operations you enabled). When it
+   finishes:
+   - **Summary**: cards for the parts to print, the height, plates · time and resin, with the assembly details
+     and any warnings underneath.
+   - **Plates**: cards for the plate count, total time, resin and the optimisation target; then per plate the
+     parts, the tallest part, the time and the resin (ml · cost). Double-clicking a plate opens its STL in your
+     default application (CHITUBOX). **Measured time**: after printing a plate, enter the time the printer
+     actually reported (e.g. `3:31`) and the estimate is calibrated to it (one measurement sets the layer time;
+     a few measurements at different heights also set the per-plate overhead). Measurements are stored on this
+     computer and apply to every kit, including on the command line.
+   - The **Support** column in the **Parts** table: how much of the area that will need supports falls on mating
+     faces, on the back or underneath. Orientation prefers supports on mating faces first, then on the back and
+     the underside, keeping the front and the sides clean (the report gives "support: hidden % · back/bottom % ·
+     front/side %" for every part).
+   - **Report** at the top opens the illustrated report; **Folders** opens the plate / part files and the output
+     folder.
+7. The **Low priority** switch in the bottom bar runs the job at low CPU priority, so the computer stays usable.
+   **Log** opens the run output (it opens by itself if something fails).
+8. **Overnight queue** (Queue tab): open each kit, set it up, press **Add to queue** at the bottom, then press
+   **Prepare all** in the Queue tab. The kits are prepared one after another with the settings they had when you
+   queued them; in the morning every kit's result (plates, time, resin, problems) is in one list, and
+   double-clicking a row opens that kit. The queue survives closing the application; a kit that was interrupted
+   is prepared from the start next time. You can also press **Prepare all** while a single kit is being
+   prepared: the queue starts when that job finishes, and a job that just finished is not prepared a second time
+   if it is waiting in the queue with the same settings.
 
-## Hızlı mod
+## Quick mode
 
-Kit klasörünü `slaprep.bat` dosyasının üstüne bırakırsanız kayıtlı (ya da varsayılan) ayarlarla hazırlanır.
+Drop a kit folder onto `slaprep.bat` and it is prepared with the saved (or default) settings.
 
-## Çıktılar (`<kit>\_slaprep\`)
+## Output (`<kit>\_slaprep\`)
 
-| Dosya | İçerik |
+| File | Contents |
 |---|---|
-| `plates\plate_01.stl` … | CHITUBOX'a açılacak asıl dosyalar. Kitte birden çok alt klasör varsa `plates\<klasör>\plate_01.stl` |
-| `parts\` | Parça başına STL (yönlendirilmiş, hollow, delikli) |
-| `report.html` | Görselli rapor |
-| `prep.json`, `analysis.json` | Makinece okunur sonuçlar |
-| `slaprep.yaml` | Bu kit için son ayarlar (bir sonraki çalıştırmada varsayılan olur) |
+| `plates\plate_01.stl` … | The files to open in CHITUBOX. With several subfolders in the kit: `plates\<folder>\plate_01.stl` |
+| `parts\` | One STL per part (oriented, hollowed, drilled) |
+| `report.html` | Illustrated report |
+| `prep.json`, `analysis.json` | Machine-readable results |
+| `slaprep.yaml` | The last settings for this kit (the defaults on the next run) |
 
-Orijinal STL dosyalarınıza asla dokunulmaz.
+Your original STL files are never touched.
 
-## Komut satırı
+## Command line
 
 ```
-slaprep analyze "<klasör>"
-slaprep prep "<klasör>" --height 150 [--height-mode figure] [--wall 2] [--hole 3 | --hole-max 5] [--holes 4]
+slaprep analyze "<folder>"
+slaprep prep "<folder>" --height 150 [--height-mode figure] [--wall 2] [--hole 3 | --hole-max 5] [--holes 4]
                        [--variant "*_Key"] [--exclude Base,lab] [--wall-mount] [--up-axis y] [--only Head,Hat]
-slaprep scan "<kök klasör>"      # tüm kitleri sadece bbox okuyarak sınıflandırır
-slaprep list                     # son çalıştırılan kitler
+slaprep scan "<root folder>"     # classifies every kit underneath, reading bounding boxes only
+slaprep list                     # recently run kits
 
-# montaj düzeltmeleri (analyze ve prep; kite kaydedilir)
-slaprep analyze "<klasör>" --detach Arm_Right,Sword_1        # yanlış yere oturanları montaja alma
-slaprep analyze "<klasör>" --join Head_v2:Miquella_Torso     # ÇAPA:PARÇA — parçayı çapaya bağla
-slaprep analyze "<klasör>" --join Torso:Hand_L:2             # ...ve 2. aday konumunu kullan
-slaprep analyze "<klasör>" --clear-fixes                     # kayıtlı düzeltmeleri sil
+# assembly corrections (for analyze and prep; saved into the kit)
+slaprep analyze "<folder>" --detach Arm_Right,Sword_1        # keep wrongly placed parts out of the assembly
+slaprep analyze "<folder>" --join Head_v2:Miquella_Torso     # ANCHOR:PART — join the part to the anchor
+slaprep analyze "<folder>" --join Torso:Hand_L:2             # ...using candidate position 2
+slaprep analyze "<folder>" --clear-fixes                     # delete the saved corrections
 ```
 
-## Sorun giderme
+## Troubleshooting
 
-- **"Bellek yetmedi" / Windows "disk belleği dosyası çok küçük"**: disk yeri değil, RAM + sanal bellek bitti.
-  Büyük kitlerde (parça başına 100–250 MB STL) bir parçanın yüklenmesi 5–6 GB bellek ister; SLAPrep paralel
-  yüklemeyi boş belleğe göre ayarlar, yine de yetmezse açık programları (CHITUBOX, tarayıcı) kapatıp tekrar deneyin.
-  Windows'un sayfa dosyasının bulunduğu sürücüde (Sistem → Gelişmiş → Performans → Sanal bellek) boş yer olmalı.
-- Yarıda kalan bir çalıştırma sorun yaratmaz: önbellek dosyaları yarım yazılmaz, bir sonraki analiz kaldığı yerden
-  (yüklenmiş parçaları atlayarak) devam eder.
-- **"Yazıcıya sığmayan parçalar"**: parça plate'e konmaz ama `parts\` altında ayrı dosya olarak durur. Uyarıda
-  sığacağı ölçek yazar (`--scale` ya da `--height` önerisi); ya kiti o kadar küçültün ya da parçayı CHITUBOX'ta bölün.
-- **Önizlemede figür yan yatık**: yukarı ekseni, montajın devrilmeden durabildiği yönden bulunur; yine de yanlışsa
-  `--up-axis y` (ya da `z`, `-y` …) ile düzeltin.
-- **İstemediğiniz bir parça seti** (ör. başka dilde isim harfli ikinci kaide): `--exclude` klasör adını da tanır,
-  alt-alt klasör dahil (`--exclude OUISTICRAM`).
-- **Kitte aynı figürün birden çok sürümü var** (bölünmüş / tek parça / büst; adlarda Split, Merge, BUST gibi):
-  en çok parçalı sürüm hazırlanır; diğeri için `--variant "*BUST*"` gibi seçin.
-- **"Alt klasörler ayrı koordinatlarda"**: kaide ve figür klasörleri ayrı export edilmiş. Her biri kendi içinde
-  doğru kurulur ve önizlemede yan yana durur; figürü kaideye nasıl oturtacağınız dosyalardan bilinmez. Oturtmak
-  için Montaj kontrolü'nde figürün ayak parçasını kaide parçasına **Bağla** (CLI: `--join KAİDE:AYAK`).
-- **"Baskı süresi için daha alçak bir yön seçildi"**: uyarıda yükseklik ve en büyük katman kesiti (önce → sonra)
-  yazar. Alternatif yön en iyi yönden fazla deliksiz vantuz bırakamaz ve katman kesitini en çok 1.5 katına
-  çıkarabilir (büyük kesit = FEP'ten soyulma kuvveti).
-- **"Orijinde duran parçalar yerine oturtuldu"**: dosyada yanlış yerde unutulmuş parçalar ek yüzeylerinden
-  yerleştirildi; Montaj kontrolü sekmesinde turuncu görünürler, önizlemeden kontrol edin.
+- **"Out of memory" / Windows "the paging file is too small"**: this is RAM + virtual memory, not disk space.
+  In big kits (100–250 MB of STL per part) loading a single part can need 5–6 GB; SLAPrep adapts how many parts
+  it loads in parallel to the free memory, but if it still runs out, close other programs (CHITUBOX, browser)
+  and try again. The drive holding Windows' page file needs free space (System → Advanced → Performance →
+  Virtual memory).
+- An interrupted run does no harm: cache files are never written half-way, and the next analysis carries on
+  where it stopped, skipping the parts it already loaded.
+- **"Parts that do not fit the printer"**: the part is left off the plates but still written to `parts\` as its
+  own file. The warning gives the scale that would fit (a `--scale` or `--height` suggestion); either shrink the
+  kit that far or cut the part up in CHITUBOX.
+- **The figure lies on its side in the preview**: the up axis is derived from the direction in which the assembly
+  can stand without tipping over; if it is still wrong, fix it with `--up-axis y` (or `z`, `-y`, …).
+- **A set of parts you do not want** (a second base with names in another language, for instance): `--exclude`
+  also accepts folder names, including nested ones (`--exclude OUISTICRAM`).
+- **The kit contains several versions of the same figure** (split / single-piece / bust; names like Split, Merge,
+  BUST): the version with the most parts is prepared; select another one with e.g. `--variant "*BUST*"`.
+- **"Subfolders are in separate coordinate systems"**: the base and the figure were exported separately. Each one
+  is assembled correctly in itself and they stand side by side in the preview, but how the figure sits on the
+  base cannot be known from the files. To seat it, **Join** the figure's foot part to the base part in Assembly
+  check (CLI: `--join BASE:FOOT`).
+- **"A lower orientation was chosen for print time"**: the warning gives the height and the largest layer
+  cross-section (before → after). An alternative orientation may not leave more undrained suction cups than the
+  best orientation, and may increase the layer cross-section by at most 1.5× (a large cross-section means a
+  large peel force off the FEP).
+- **"Parts sitting at the origin were seated"**: parts left at the wrong position in the file were placed using
+  their mating surfaces; they show up orange in the Assembly check tab, so check them in the preview.
 
-## Geliştirme: testler ve regresyon seti
+## Development: tests and the regression set
 
 ```
-.venv\Scripts\python -m pytest tests -m "not rango"     # hızlı birim testleri (~1 dk, kit gerekmez)
-.venv\Scripts\python tools\regress.py --quick           # bilinen kitlerde montaj sonucu beklenenle aynı mı
-.venv\Scripts\python tools\regress.py                   # hepsi (Radahn, chiro, Rango otomatik dahil; uzun)
+.venv\Scripts\python -m pytest tests -m "not rango"     # fast unit tests (~1 min, no kit needed)
+.venv\Scripts\python tools\regress.py --quick           # do the known kits still assemble as expected
+.venv\Scripts\python tools\regress.py                   # everything (long; includes the auto-assembly cases)
 ```
 
-Regresyon seti kendi bilgisayarınızdaki kit klasörlerini gösterir, bu yüzden depoya girmez: biçimi
-`tools\regress_kits.example.yaml` dosyasında: onu `tools\regress_kits.yaml` adıyla kopyalayıp kendi kitlerinizi
-yazın. Rango testi için kit yolları `SLAPREP_RANGO` / `SLAPREP_RANGO_ORIG` ortam değişkenlerinden okunur
-(verilmezse test atlanır).
+The regression set points at kit folders on your own computer, so it is not in the repository: the format is in
+`tools\regress_kits.example.yaml` — copy it to `tools\regress_kits.yaml` and fill in your own kits. The Rango
+test reads its kit paths from the `SLAPREP_RANGO` / `SLAPREP_RANGO_ORIG` environment variables (the test is
+skipped if they are not set).
 
-Montaj, varyant ya da otomatik montaj kodunda her değişiklikten sonra regresyonu çalıştırın: daha önce doğru
-çözülen bir kit bozulursa burada görünür. Yeni bir kit doğrulandığında (önizleme + gerçek boy) beklenen değerleriyle
-`tools\regress_kits.yaml`'a ekleyin; `verified` alanına nasıl doğrulandığını yazın.
+Run the regression after every change to the assembly, variant or auto-assembly code: a kit that used to be
+solved correctly shows up here if it breaks. When you have verified a new kit (preview + real height), add it
+with its expected values to `tools\regress_kits.yaml` and write down in the `verified` field how you checked it.
 
-## Lisans
+`ARGE.md` documents the R&D behind plate nesting and hole placement, with the measurements behind each decision
+(in Turkish).
 
-MIT — `LICENSE` dosyasına bakın.
+## License
+
+MIT — see `LICENSE`.
