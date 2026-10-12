@@ -122,10 +122,12 @@ def test_resin_price_updates_plates_without_rerun(app, tmp_path):
     (o / "prep.json").write_text(json.dumps(d), encoding="utf-8")
     app._load_results()
     assert app.ptree.set("plate_01", "recine") == "≈ 46 ml"            # 40 ml + %15 destek payı
+    # para birimi açıkça verilir: varsayılanı işletim sisteminin bölgesine göre değişir (TL / USD / EUR …)
+    app.v_resin_cur.set("TL")
     app.v_resin_price.set("1000")
     assert app.ptree.set("plate_01", "recine") == "≈ 46 ml · 46.00 TL"
     assert "46.00 TL" in app.summary.get("1.0", "end")
-    assert load_prefs().price_l == 1000.0
+    assert load_prefs().price_l == 1000.0 and load_prefs().currency == "TL"
 
 
 def test_real_time_entry_calibrates_estimates(app):
