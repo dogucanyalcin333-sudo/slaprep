@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slaprep"
+version = "0.1.0"
+description = "SLA baskı öncesi otomatik hazırlık: montaj, ölçek, hollow, delik, yönlendirme, plate yerleşimi"
+requires-python = ">=3.11"
+dependencies = [
+    "trimesh",
+    "numpy",
+    "scipy",
+    "manifold3d",
+    "open3d",
+    "scikit-image",
+    "fast-simplification",
+    "matplotlib",
+    "pyyaml",
+    "rich",
+    "networkx",
+    "pymeshfix",
+    "tkinterdnd2",
+]
+
+[project.optional-dependencies]
+repair = ["pymeshfix"]
+dev = ["pytest"]
+
+[project.scripts]
+slaprep = "slaprep.cli:main"
+
+[project.gui-scripts]
+slaprep-gui = "slaprep.gui:main"
+
+[tool.setuptools]
+packages = ["slaprep"]
+
+[tool.setuptools.package-data]
+slaprep = ["assets/*"]
+
+[tool.pytest.ini_options]
+markers = ["rango: Rango test kiti gerektirir (yavaş)"]
+pythonpath = ["tests"]
+addopts = "-p no:cacheprovider"

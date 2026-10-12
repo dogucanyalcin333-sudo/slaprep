@@ -1,0 +1,36 @@
+# Sanal ortam (install.bat kendisi kurar, depoya girmez)
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Test ve araç önbellekleri / çıktıları
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tools/trial_out/
+tools/regress_out/
+
+# Yerel deneme çıktıları, tarama kayıtları ve ad-hoc hata ayıklama betikleri
+scans/
+scans_log.txt
+
+# Yerel kit listeleri: bu bilgisayardaki kit klasörlerinin yollarını içerir
+# (örnek biçim: tools/regress_kits.example.yaml)
+tools/regress_kits.yaml
+tools/trial_kits*.yaml
+
+# Günlükler
+*.log
+*.err
+
+# İşletim sistemi
+Thumbs.db
+desktop.ini
+.DS_Store

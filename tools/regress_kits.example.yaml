@@ -1,0 +1,44 @@
+# Regresyon seti örneği. Kullanmak için bu dosyayı `regress_kits.yaml` adıyla kopyalayıp
+# kendi kit klasörlerinizi yazın (gerçek dosya .gitignore'dadır: yollar kişiseldir).
+# Çalıştırma: .venv\Scripts\python tools\regress.py   (bkz. tools\regress.py başındaki açıklama)
+#
+# Alanlar
+#   path      : kit klasörü
+#   settings  : varsayılanlara uygulanacak ayarlar (exclude, up_axis, variants, wall_mount, base)
+#   slow      : true ise --quick'te atlanır
+#   check     : "assembly" (varsayılan) ya da "auto_synthetic" (montajlı kiti her parça orijinde olacak şekilde
+#               bozup otomatik montajın gerçek konumları bulmasını ölçer)
+#   expect    : her alan isteğe bağlı
+#       mode, up (+y/-x…), parts, placed_min (seçili+yerleşen en az), height / figure_height: [değer, tolerans mm],
+#       selected / unselected: bu parçalar seçili olmalı / olmamalı, base: kaide parçaları arasında olmalı,
+#       max_penetration: en çok (mm)
+#       repair_failed: onarımı şekli bozacağı için yapılmayan (orijinal + dolu basılan) parçalar — tam liste
+#       junk: reklam/filigran dosyası sayılan parçalar — tam liste
+#       auto_synthetic için: placed_min, median_err_max, max_err (mm)
+#   verified  : beklenenin nasıl doğrulandığı (yeni kit eklerken mutlaka yazın)
+
+kits:
+  # Montajlı (parçaları doğru konumlarda export edilmiş) bir kit
+  - id: ornek-montajli
+    path: D:\kitler\Ornek Figur\STL
+    expect:
+      mode: tam
+      up: +y
+      parts: 12
+      height: [180.0, 1.0]
+      base: [Base_Part_1]
+      unselected: [HEIGHT_PILLAR]
+    verified: Stüdyo render'larıyla ve önizlemeyle karşılaştırıldı (nasıl doğruladığınızı buraya yazın).
+
+  # Parçaları orijinde duran, otomatik montaja düşen bir kit
+  - id: ornek-otomatik
+    path: D:\kitler\Ornek DagiNik Kit
+    slow: true
+    settings:
+      exclude: [Base]
+      up_axis: y
+    expect:
+      mode: otomatik
+      parts: 9
+      placed_min: 7
+    verified: Önizleme kontrolü (tarih + ne gördüğünüz).
